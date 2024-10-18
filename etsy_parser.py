@@ -1,5 +1,6 @@
 import datetime
 import re
+from typing import Any, LiteralString
 
 from bs4 import BeautifulSoup as Soup
 from colorama import Fore, Back
@@ -7,135 +8,160 @@ from colorama import Fore, Back
 from gdrive_finder import GoogleDriveFinder
 
 
-class EtsyParser(GoogleDriveFinder):
-    """Класс для парсинга данных из заказа. Наследует методы GoogleDriveFinder"""
+class EtsyParser:
+    """Класс для парсинга данных из заказа Etsy"""
 
-    def __init__(self, order):
+    def __init__(self, order: Any):
         """Инициализация переменных данных заказов и метода Soup"""
-        super().__init__()
         self.order = order
         self.soup = Soup(order, "lxml")
-        self.date = None
-        self.listing_link = None
-        self.store_title = None
-        self.order_id = None
-        self.listing_title = None
+        self.finder = GoogleDriveFinder()
         self.sku = None
-        self.address = None
-        self.customization = None
-        self.quantity = None
-        self.items_total = None
-        self.shipping_total = None
-        self.postal_service = None
-        self.tracking_number = None
-        self.tracking_link = None
-        self.shipping_type = None
-        self.shipping_label_link = None
-        self.file_link = None
+        self.order_id = None
         self.size = None
-        self.shipping_price = None
 
     @staticmethod
-    def get_parse_date(self):
+    def __get_parse_date(self) -> str:
         """Метод получения сегодняшней даты"""
         self.today = datetime.date.today().strftime("%d.%m.%Y")
         print(Fore.GREEN + f'- Дата обработки заказа: {Fore.MAGENTA}{self.today}{Back.WHITE}' + Back.WHITE)
         return self.today
 
-    @staticmethod
-    def search_link_to_file(self):
+    def __search_link_to_file(self) -> list[dict[str, Any]] | None:
         """Метод поиска ссылки на файл по номеру заказа или SKU"""
-        file_link = self.search_file_by_name(self,
-                                             query=f"name contains '{self.order_id}' and not name contains '.pdf'")
+        file_link = self.finder.search_file_by_name(
+            query=f"name contains '{self.order_id}' and not name contains '.pdf'")
         if file_link is None:
-            file_link = self.search_file_by_name(self, query=f"name contains '{self.sku}' and not name contains '.pdf'")
+            file_link = self.finder.search_file_by_name(
+                query=f"name contains '{self.sku}' and not name contains '.pdf'")
         return file_link
 
-    def parse_order(self):
+    def parse_order(self) -> list[dict[str, None | str | int]]:
         """Метод парсинга данных из заказа"""
-        self.date = self.get_parse_date(self)
-        self.listing_link = self.get_listing_link()
-        self.store_title = self.get_store_title()
-        self.order_id = self.get_order_id()
-        self.listing_title = self.get_listing_title()
-        self.sku = self.get_sku()
-        self.address = self.get_address()
-        self.customization = self.get_customization()
-        self.quantity = self.get_quantity()
-        self.items_total = self.get_items_total()
-        self.shipping_total = self.get_shipping_total_value()
-        self.shipping_price = self.get_shipping_price()
-        self.postal_service = self.get_postal_service()
-        self.tracking_number = self.get_tracking_number()
-        self.tracking_link = self.get_tracking_link()
-        self.shipping_type = self.get_shipping_type()
-        # Поиск ссылки на шиплейбл. Если не найдено, в таблицу будет вставлен текст File Not Found
-        file_result = self.search_file_by_name(self, query=f"name contains '{self.order_id}' and name contains '.pdf'")
-        self.shipping_label_link = file_result['link'] if file_result else 'File Not Found'
-        # Поиск ссылки на файл. Если не найдено, в таблицу будет вставлен текст File Not Found
-        file_result = self.search_link_to_file(self)
-        self.file_link = file_result['link'] if file_result else 'File Not Found'
-        self.size = self.get_size()
-        order_data = {
-            'Status': None,
-            'Date': self.date,
-            'Store': self.store_title,
-            'Channel': 'Etsy',
-            'ASIN/SKU': self.sku,
-            'Listing Link': self.listing_link,
-            'Order ID': self.order_id,
-            'Title': self.listing_title,
-            'Address/Ship to': self.address,
-            'Quantity': self.quantity,
-            'Customization info': self.customization,
-            'File Link': self.file_link,
-            'Shipping label link': self.shipping_label_link,
-            'Track ID': self.tracking_number,
-            'Postal Service': self.postal_service,
-            'Shipping speed': self.shipping_type,
-            'Track package': self.tracking_link,
-            'Items total': self.items_total,
-            'Shipping total': self.shipping_total,
-            'Shipping price': self.shipping_price,
-            'Total': (self.items_total + self.shipping_price) - self.shipping_total
-        }
-        return order_data
+        date = self.__get_parse_date(self)
+        listing_links = self.__get_listing_links()
+        store_title = self.__get_store_title()
+        self.order_id = self.__get_order_id()
+        address = self.__get_address()
+        items_total = self.__get_items_total()
+        shipping_total = self.__get_shipping_total_value()
+        shipping_price = self.__get_shipping_price()
+        postal_service = self.__get_postal_service()
+        tracking_number = self.__get_tracking_number()
+        tracking_link = self.__get_tracking_link()
+        shipping_type = self.__get_shipping_type()
 
-    def get_smaller_size(self):
+        # Поиск ссылки на шиплейбл. Если не найдено, в таблицу будет вставлен текст File Not Found
+        file_result = self.finder.search_file_by_name(query=f"name contains '{self.order_id}' and name contains '.pdf'")
+        shipping_label_link = file_result[0]['link'] if file_result else 'File Not Found'
+
+        # Поиск всех файлов по размеру
+        files = self.__search_link_to_file()
+        if not files:
+            files = [{'link': 'File Not Found', 'name': 'File Not Found'}]
+
+        # Список для отслеживания назначенных файлов
+        assigned_files = []
+
+        order_items = []
+        items = self.soup.find_all("tr", class_="col-group pl-xs-0 pt-xs-3 pr-xs-0 pb-xs-3 bb-xs-1")
+
+        for index, item in enumerate(items):
+            listing_title = self.__get_listing_title(item)
+            self.sku = self.__get_sku(item, listing_title)
+            customization = self.__get_customization(item)
+            quantity = self.__get_quantity(item)
+            self.size = self.__get_size(item)
+            listing_url = listing_links[index] if index < len(listing_links) else 'File Not Found'
+
+            matched_file_link = 'File Not Found'
+
+            # Проход по файлам, чтобы найти подходящий файл по размеру
+            for file_index, file in enumerate(files):
+                # Извлечение чисел из имени файла и сравнение с размером товара
+                file_name = file['name'].split('.')[0]
+                file_size_match = re.findall(r'\d+\.?\d*', file_name.split(" ")[0])
+                item_size_match = re.findall(r'\d+\.?\d*', self.size)
+
+                # Если размеры совпадают и файл еще не был назначен товару
+                if sorted(file_size_match) == sorted(item_size_match) and file_index not in assigned_files:
+                    matched_file_link = file['link']
+                    assigned_files.append(file_index)  # Отмечаем файл как назначенный
+                    break
+
+            order_data = {
+                'Status': None,
+                'Date': date,
+                'Store': store_title,
+                'Channel': 'Etsy',
+                'ASIN/SKU': self.sku,
+                'Listing Link': listing_url,
+                'Order ID': self.order_id,
+                'Title': listing_title,
+                'Address/Ship to': address,
+                'Quantity': quantity,
+                'Customization info': customization,
+                'File Link': matched_file_link,
+                'Shipping label link': shipping_label_link,
+                'Track ID': tracking_number,
+                'Postal Service': postal_service,
+                'Shipping speed': shipping_type,
+                'Track package': tracking_link,
+                'Items total': items_total,
+                'Shipping total': shipping_total,
+                'Shipping price': shipping_price,
+                'Total': (items_total + shipping_price) - shipping_total
+            }
+            order_items.append(order_data)
+
+        return order_items
+
+    def get_smaller_size(self) -> int | str:
         """Получение меньшего значения в размере товара для сортировки"""
         try:
             size = self.size.split("x")
-            width = size[0]
-            height = size[1]
+            width = int(size[0].strip())
+            height = int(size[1].strip())
             smaller_size = min(width, height)
             return int(smaller_size)
         except AttributeError:
             print(Fore.RED + "||| Не смог получить меньший размер для сортировки |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_extension(self):
+    def get_extension(self) -> str:
         """Получение расширения файла для последующей сортировки по листам"""
-        file_link = self.search_link_to_file(self)
-        if file_link['name'] != 'File Not Found':
-            extension = self.search_link_to_file(self)['name'].split(".")[-1]
+        files = self.__search_link_to_file()
+
+        # Проверка, что возвращен список файлов
+        if files and isinstance(files, list):
+            for file in files:
+                if file['name'] != 'File Not Found':
+                    extension = file['name'].split(".")[-1]  # Получаем расширение первого подходящего файла
+                    return extension
+            return 'Unknown'  # Если файлы есть, но не нашли нужный файл
         else:
-            extension = 'Unknown'
+            return 'Unknown'
 
-        return extension
-
-    def get_listing_link(self):
-        """Извлечение и преобразование ссылки. Должна быть вставлена перед заказом"""
+    def __get_listing_links(self) -> list[str]:
+        """Извлечение и преобразование всех ссылок на листинги из заказа"""
+        listing_urls = []
         try:
-            listing_url_match = re.search(r'(https://www\.etsy\.com/listing/[^?\s]+)', self.order)
-            listing_url = listing_url_match.group(1)
-            print(Fore.GREEN + f'- Ссылка на листинг: {Fore.MAGENTA}{listing_url}{Back.WHITE}' + Back.WHITE)
-            return listing_url
-        except AttributeError:
-            print(
-                Fore.RED + "||| Не смог получить ссылку на листинг. Скорее всего, она не была добавлена |||" + Back.WHITE)
-            return "!ERROR!"
+            listing_url_matches = re.finditer(r'(https://www\.etsy\.com/listing/[^?\s]+)', self.order)
+            for match in listing_url_matches:
+                listing_url = match.group(1)
+                listing_urls.append(listing_url)
+                print(Fore.GREEN + f'- Ссылка на листинг: {Fore.MAGENTA}{listing_url}{Back.WHITE}' + Back.WHITE)
 
-    def get_store_title(self):
+            if not listing_urls:
+                print(Fore.RED + "||| Не найдено ни одной ссылки на листинг |||" + Back.WHITE)
+                return ["!ERROR!"]
+
+            return listing_urls
+        except Exception as e:
+            print(Fore.RED + f"||| Ошибка при получении ссылок на листинги: {e} |||" + Back.WHITE)
+            return ["!ERROR!"]
+
+    def __get_store_title(self) -> str:
         """Извлечение названия магазина"""
         try:
             store_title = (self.soup.find("span", id="order-details-order-info", class_="display-inline-block").
@@ -146,7 +172,7 @@ class EtsyParser(GoogleDriveFinder):
             print(Fore.RED + "||| Не смог получить название магазина |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_order_id(self):
+    def __get_order_id(self) -> str:
         """Извлечение номера заказа"""
         try:
             order_id = (self.soup.find("span", id="order-details-order-info", class_="display-inline-block").
@@ -157,90 +183,118 @@ class EtsyParser(GoogleDriveFinder):
             print(Fore.RED + "||| Не смог получить номер заказа |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_listing_title(self):
+    @staticmethod
+    def __get_listing_title(item: Any) -> str:
         """Извлечение названия товара"""
         try:
-            customizations_div = (self.soup.
-                                  find("div", class_="flag-body prose").
-                                  find_all_next("span", {'data-test-id': 'unsanitize'}))
-
-            listing_title = customizations_div[0].text.strip()
-            print(Fore.GREEN + f" - Название товара: {Fore.MAGENTA}{listing_title}{Back.WHITE}" + Back.WHITE)
+            listing_title = (item.
+                             find("div", class_="flag-body prose").
+                             find("span", {'data-test-id': 'unsanitize'})).text.strip()
+            print(Fore.GREEN + f"- Название товара: {Fore.MAGENTA}{listing_title}{Back.WHITE}" + Back.WHITE)
             return listing_title
         except AttributeError:
             print(Fore.RED + "||| Не смог получить название листинга |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_sku(self):
+    @staticmethod
+    def __get_sku(item: Any, listing_title: str) -> str:
         """Извлечение SKU"""
-        sku_in_title = self.listing_title.split(" ")[-1]
         try:
-            sku = (self.soup.find("div", class_="flag-body prose").find_next("span", class_="mb-xs-1").find("p").
-                   find("span", {'data-test-id': 'unsanitize'})).text.strip()
+            sku = item.find("span", class_="mb-xs-1").find("p").find("span",
+                                                                     {'data-test-id': 'unsanitize'}).text.strip()
         except AttributeError:
             print(Fore.YELLOW + 'SKU не указан на листинге, пытаюсь получить его из названия товара' + Back.WHITE)
-            sku = sku_in_title
+            sku = listing_title.split(" ")[-1]
         print(Fore.GREEN + f'- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}' + Back.WHITE)
         return sku
 
-    def get_address(self):
+    def __get_address(self) -> str:
         """Извлечение адреса"""
         try:
             address_div = self.soup.find("div", class_="address break-word").find("p")
-            name = address_div.find("span", class_="name").text.strip()
-            first_line = address_div.find("span", class_="first-line").text.strip()
-            city = address_div.find("span", class_="city").text.strip()
-            state = address_div.find("span", class_="state").text.strip()
-            zip_code = address_div.find("span", class_="zip").text.strip()
-            country_name = address_div.find("span", class_="country-name").text.strip()
-            full_address = f"{name}\n{first_line}\n{city}, {state} {zip_code}\n{country_name}"
+            address_parts = {}
+
+            # Поиск всех span элементов в адресе и распределение по ключам
+            for span in address_div.find_all("span"):
+                class_name = span.get("class", [None])[0]  # Получаем класс первого элемента, если он есть
+                if class_name == "name":
+                    address_parts['name'] = span.text.strip()
+                elif class_name == "first-line":
+                    address_parts['first_line'] = span.text.strip()
+                elif class_name == "city":
+                    address_parts['city'] = span.text.strip()
+                elif class_name == "state":
+                    address_parts['state'] = span.text.strip()
+                elif class_name == "zip":
+                    address_parts['zip_code'] = span.text.strip()
+                elif class_name == "country-name":
+                    address_parts['country_name'] = span.text.strip()
+
+            # Составление полного адреса с проверкой наличия каждого элемента
+            full_address = f"{address_parts.get('name', '')}\n{address_parts.get('first_line', '')}\n"
+            full_address += f"{address_parts.get('city', '')}, {address_parts.get('state', '')} {address_parts.get('zip_code', '')}\n"
+            full_address += f"{address_parts.get('country_name', '')}"
+
             print(Fore.GREEN + f'- Адрес клиента:\n{Fore.MAGENTA}{full_address}{Back.WHITE}' + Back.WHITE)
             return full_address
+
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить адрес клиент |||" + Back.WHITE)
+            print(Fore.RED + "||| Не смог получить адрес клиента |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_customization(self):
+    @staticmethod
+    def __get_customization(item: Any) -> LiteralString | None:
         """Извлечение и преобразование кастомизации из заказа"""
-        customization_block = self.soup.find("div", class_="flag-body prose").find_all("li")
+        customization_block = item.find("div", class_="flag-body prose").find_all("li")
         customization_items = " \n".join([li.get_text() for li in customization_block])
 
         try:
-            customer_info = (self.soup.find("div", class_="order-detail-buyer-note bg-blinding-sandstorm panel pointer"
-                                                          " pointer-top-left text-body-smaller p-xs-2 mt-xs-2 mb-xs-0").
+            customer_info = (item.find("div", class_="order-detail-buyer-note bg-blinding-sandstorm panel pointer"
+                                                     " pointer-top-left text-body-smaller p-xs-2 mt-xs-2 mb-xs-0").
                              find("pre", class_="note").
                              find("span", {'data-test-id': 'unsanitize'})).text.strip()
             customization_items += f"\nBuyer Note: {customer_info}"
             print(Fore.GREEN + f'- Кастомизация:\n  {Fore.MAGENTA}{customization_items}{Back.WHITE}' + Back.WHITE)
         except AttributeError:
-            customer_info = None
+            customization_items = None
 
         return customization_items
 
-    def get_size(self):
+    @staticmethod
+    def __get_size(item: Any) -> str:
         """Извлечение размера товара"""
         try:
-            size = self.soup.find("div", class_="flag-body prose").find_all("li")
-            size = size[0].get_text().partition(' ')[2].rstrip(' inches')
-            if "\"" in size:
-                size = size.replace("\"", "")
-            print(Fore.GREEN + f'- Размер товара: {Fore.MAGENTA}{size}{Back.WHITE}' + Back.WHITE)
-            return size
+            size_text = item.find("div", class_="flag-body prose").find_all("li")[0].get_text()
+
+            # Используем регулярное выражение для извлечения всех чисел (целых и дробных)
+            size_pattern = re.findall(r'(\d+\.?\d*)', size_text)
+
+            if size_pattern and len(size_pattern) >= 2:
+                # Берем первые два числа, предполагая, что это ширина и высота
+                width, height = size_pattern[:2]
+                size = f"{width}x{height}"
+                print(Fore.GREEN + f'- Размер товара: {Fore.MAGENTA}{size} inches{Back.WHITE}')
+                return size
+            else:
+                print(Fore.YELLOW + "||| Не удалось распознать размер из текста: ", size_text, " |||" + Back.WHITE)
+                return "!ERROR!"
+
         except AttributeError:
             print(Fore.RED + "||| Не смог получить размер товара |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_quantity(self):
+    @staticmethod
+    def __get_quantity(item: Any) -> int | str:
         """Извлечение количества товара в заказе"""
         try:
-            quantity = self.soup.find("td", class_="col-xs-2 pl-xs-0 text-center").text.strip()
+            quantity = item.find("td", class_="col-xs-2 pl-xs-0 text-center").text.strip()
             print(Fore.GREEN + f'- Количество: {Fore.MAGENTA}{quantity}{Back.WHITE}' + Back.WHITE)
-            return quantity
+            return int(quantity)
         except AttributeError:
             print(Fore.RED + "||| Не смог получить количество |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_shipping_price(self):
+    def __get_shipping_price(self) -> float | str:
         """Цена доставки, которую заплатил клиент"""
         try:
             shipping_items = self.soup.find_all("li", class_="col-group wt-p-xs-0 wt-mt-xs-1 wt-mb-xs-1")
@@ -257,7 +311,7 @@ class EtsyParser(GoogleDriveFinder):
             print(Fore.RED + "||| Установленная цена за доставку не найдена |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_items_total(self):
+    def __get_items_total(self) -> float | str:
         """Получение общей стоимости товара"""
         try:
             items_total = (self.soup.find("li", class_="col-group wt-p-xs-0 wt-mt-xs-1 wt-mb-xs-1").
@@ -269,7 +323,7 @@ class EtsyParser(GoogleDriveFinder):
             print(Fore.RED + "||| Не смог получить общую сумму за товары |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_shipping_total_value(self):
+    def __get_shipping_total_value(self) -> int | str:
         """Получение стоимости, которую заплатил продавец за шиплейбл"""
         try:
             shipping_values = self.soup.find_all("div", class_="wt-flex-md-1 text-right")
@@ -288,7 +342,7 @@ class EtsyParser(GoogleDriveFinder):
             print(Fore.RED + "||| Не смог получить сумму, уплаченную нами за доставку |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_postal_service(self):
+    def __get_postal_service(self) -> str:
         """Извлечение названия почтовой службы"""
         try:
             # Парсит название при покупке шиплейбла на Этси
@@ -315,7 +369,7 @@ class EtsyParser(GoogleDriveFinder):
                 print(Fore.RED + "||| Не смог получить название почтовой службы |||" + Back.WHITE)
                 return "!ERROR!"
 
-    def get_tracking_number(self):
+    def __get_tracking_number(self) -> str:
         """Извлечение трек-номера"""
         try:
             tracking_number = self.soup.find("div", class_="col-xs-9 wt-wrap").find("a").text.strip()
@@ -325,7 +379,7 @@ class EtsyParser(GoogleDriveFinder):
             print(Fore.RED + "||| Не смог получить трек-номер |||" + Back.WHITE)
             return "!ERROR!"
 
-    def get_tracking_link(self):
+    def __get_tracking_link(self) -> str | list[str] | None:
         """Извлечение ссылки на отслеживание посылки"""
         try:
             tracking_link = self.soup.find("div", class_="col-xs-9 wt-wrap").find("a").get("href")
@@ -335,7 +389,7 @@ class EtsyParser(GoogleDriveFinder):
             print(Fore.RED + "||| Не смог получить ссылку на отслеживание |||" + Back.WHITE)
             return "!ERROR"
 
-    def get_shipping_type(self):
+    def __get_shipping_type(self) -> str:
         """Извлечение типа доставки"""
         try:
             shipping_type = (self.soup.find("div", class_="strong text-body-smaller").
