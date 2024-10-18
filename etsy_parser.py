@@ -255,10 +255,10 @@ class EtsyParser:
                              find("span", {'data-test-id': 'unsanitize'})).text.strip()
             customization_items += f"\nBuyer Note: {customer_info}"
             print(Fore.GREEN + f'- Кастомизация:\n  {Fore.MAGENTA}{customization_items}{Back.WHITE}' + Back.WHITE)
+            return customization_items
         except AttributeError:
-            customization_items = None
-
-        return customization_items
+            print(Fore.GREEN + f'||| Не смог получить кастомную информацию |||' + Back.WHITE)
+            return ""
 
     @staticmethod
     def __get_size(item: Any) -> str:
