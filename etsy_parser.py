@@ -250,15 +250,15 @@ class EtsyParser:
 
         try:
             customer_info = (item.find("div", class_="order-detail-buyer-note bg-blinding-sandstorm panel pointer"
-                                                     " pointer-top-left text-body-smaller p-xs-2 mt-xs-2 mb-xs-0").
+                                                          " pointer-top-left text-body-smaller p-xs-2 mt-xs-2 mb-xs-0").
                              find("pre", class_="note").
                              find("span", {'data-test-id': 'unsanitize'})).text.strip()
             customization_items += f"\nBuyer Note: {customer_info}"
             print(Fore.GREEN + f'- Кастомизация:\n  {Fore.MAGENTA}{customization_items}{Back.WHITE}' + Back.WHITE)
-            return customization_items
         except AttributeError:
-            print(Fore.GREEN + f'||| Не смог получить кастомную информацию |||' + Back.WHITE)
-            return ""
+            customer_info = None
+
+        return customization_items
 
     @staticmethod
     def __get_size(item: Any) -> str:
