@@ -5,7 +5,8 @@ from colorama import Fore, Back
 from google.oauth2 import service_account
 from gspread import Worksheet
 
-from gdrive_finder import resource_path
+from config.settings import settings
+from google_api.gdrive_finder import resource_path
 
 
 class GSheetWriter:
@@ -14,10 +15,11 @@ class GSheetWriter:
     def __init__(self) -> None:
         """Инициализация данных Google Sheets и получение данных из заказа для последующей записи"""
         self.gspread_scope = ['https://www.googleapis.com/auth/spreadsheets']
-        self.gspread_creds = service_account.Credentials.from_service_account_file(resource_path('token.json'),
-                                                                                   scopes=self.gspread_scope)
-        self.client = gspread.service_account('token.json')
-        self.spreadsheet = self.client.open_by_key('1kZFamG8zkM-7-XpcB6FDlLBn_MT83Zuv1MS7Uy7jxpA')
+        self.gspread_creds = service_account.Credentials.from_service_account_file(resource_path(
+            'config/token.json'),
+            scopes=self.gspread_scope)
+        self.client = gspread.service_account('config/token.json')
+        self.spreadsheet = self.client.open_by_key(settings.TABLE_ID)
 
     def __sort_by_sheets(self, extension: str, smaller_size: int | str) -> Worksheet:
         """Сортировка по листам, используя размер и расширение файла"""

@@ -5,7 +5,7 @@ from typing import Any, LiteralString
 from bs4 import BeautifulSoup as Soup
 from colorama import Fore, Back
 
-from gdrive_finder import GoogleDriveFinder
+from google_api.gdrive_finder import GoogleDriveFinder
 
 
 class EtsyParser:
@@ -38,10 +38,11 @@ class EtsyParser:
 
     def parse_order(self) -> list[dict[str, None | str | int]]:
         """Метод парсинга данных из заказа"""
+        self.order_id = self.__get_order_id()
+        shipping_label_link = self.finder.upload_shipping_labels(self.order_id)
         date = self.__get_parse_date(self)
         listing_links = self.__get_listing_links()
         store_title = self.__get_store_title()
-        self.order_id = self.__get_order_id()
         address = self.__get_address()
         items_total = self.__get_items_total()
         shipping_total = self.__get_shipping_total_value()
@@ -52,8 +53,8 @@ class EtsyParser:
         shipping_type = self.__get_shipping_type()
 
         # Поиск ссылки на шиплейбл. Если не найдено, в таблицу будет вставлен текст File Not Found
-        file_result = self.finder.search_file_by_name(query=f"name contains '{self.order_id}' and name contains '.pdf'")
-        shipping_label_link = file_result[0]['link'] if file_result else 'File Not Found'
+        # file_result = self.finder.search_file_by_name(query=f"name contains '{self.order_id}' and name contains '.pdf'")
+        # shipping_label_link = file_result[0]['link'] if file_result else 'File Not Found'
 
         # Поиск всех файлов по размеру
         files = self.__search_link_to_file()
@@ -250,7 +251,7 @@ class EtsyParser:
 
         try:
             customer_info = (item.find("div", class_="order-detail-buyer-note bg-blinding-sandstorm panel pointer"
-                                                          " pointer-top-left text-body-smaller p-xs-2 mt-xs-2 mb-xs-0").
+                                                     " pointer-top-left text-body-smaller p-xs-2 mt-xs-2 mb-xs-0").
                              find("pre", class_="note").
                              find("span", {'data-test-id': 'unsanitize'})).text.strip()
             customization_items += f"\nBuyer Note: {customer_info}"

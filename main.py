@@ -1,13 +1,23 @@
-# pyinstaller --onefile --windowed --add-data "token.json:." --icon=icon.png --name=OrdersParserByDK main.py
+# pyinstaller --onefile --windowed \
+# --add-data="config/token.json:config" \
+# --add-data="config/.env:config" \
+# --add-data="google_api:google_api" \
+# --add-data="marketplaces:marketplaces" \
+# --icon=assets/icon.png \
+# --hidden-import="pydantic_settings" \
+# --hidden-import="pydantic" \
+# --name=OrdersParserByDK \
+# main.py
+
 import os
 import sys
 from typing import LiteralString
 
 from colorama import Fore, init, Back
 
-from amazon_parser import AmazonParser
-from etsy_parser import EtsyParser
-from gsheet_writer import GSheetWriter
+from marketplaces.amazon_parser import AmazonParser
+from marketplaces.etsy_parser import EtsyParser
+from google_api.gsheet_writer import GSheetWriter
 
 init(autoreset=True)
 
