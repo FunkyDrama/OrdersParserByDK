@@ -90,8 +90,8 @@ class AmazonParser:
     def __get_store_title(self) -> str:
         """Извлечение названия магазина"""
         try:
-            store_title = (self.soup.find("button", class_="partner-dropdown-button").find("span").
-                           find("b").text.strip())
+            store_title = (self.soup.find("div", class_="dropdown-account-switcher-header-label").
+                           find("span", class_="dropdown-account-switcher-header-label-global").text.strip())
             print(Fore.GREEN + f'- Название магазина: {Fore.MAGENTA}{store_title}{Back.WHITE}' + Back.WHITE)
             return store_title
         except AttributeError:
@@ -106,6 +106,8 @@ class AmazonParser:
             sku = sku_with_brackets.split(" ")[-1].strip()
         else:
             sku = listing_title.split(" ")[-1].strip()
+            if len(sku) == 1:
+                sku = listing_title.split(" ")[-2].strip()
         print(Fore.YELLOW + 'SKU был взять из названия, проверьте после добавления в таблицу!' + Back.WHITE)
         print(Fore.GREEN + f'- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}' + Back.WHITE)
         return sku
