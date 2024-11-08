@@ -52,9 +52,10 @@ class EtsyParser:
         tracking_link = self.__get_tracking_link()
         shipping_type = self.__get_shipping_type()
 
-        # Поиск ссылки на шиплейбл. Если не найдено, в таблицу будет вставлен текст File Not Found
-        # file_result = self.finder.search_file_by_name(query=f"name contains '{self.order_id}' and name contains '.pdf'")
-        # shipping_label_link = file_result[0]['link'] if file_result else 'File Not Found'
+        if shipping_label_link == "File Not Found":
+            file_result = self.finder.search_file_by_name(
+                query=f"name contains '{self.order_id}' and name contains '.pdf'")
+            shipping_label_link = file_result[0]['link'] if file_result else 'File Not Found'
 
         # Поиск всех файлов по размеру
         files = self.__search_link_to_file()

@@ -34,8 +34,9 @@ class AmazonParser:
         files = self.__search_link_to_file()
         if not files:
             files = [{'link': 'File Not Found', 'name': 'File Not Found'}]
-        # file_result = self.finder.search_file_by_name(query=f"name contains '{self.order_id}' and name contains '.pdf'")
-        # shipping_label_link = file_result[0]['link'] if file_result else 'File Not Found'
+        if shipping_label_link == "File Not Found":
+            file_result = self.finder.search_file_by_name(query=f"name contains '{self.order_id}' and name contains '.pdf'")
+            shipping_label_link = file_result[0]['link'] if file_result else 'File Not Found'
 
         order_items = []
         items = self.soup.find('table', class_="a-keyvalue").find('tbody').find_all('tr')
@@ -90,10 +91,16 @@ class AmazonParser:
     def __get_store_title(self) -> str:
         """Извлечение названия магазина"""
         try:
-            store_title = (self.soup.find("div", class_="dropdown-account-switcher-header-label").
-                           find("span", class_="dropdown-account-switcher-header-label-global").text.strip())
-            print(Fore.GREEN + f'- Название магазина: {Fore.MAGENTA}{store_title}{Back.WHITE}' + Back.WHITE)
-            return store_title
+            try:
+                store_title = (self.soup.find("div", class_="dropdown-account-switcher-header-label").
+                               find("span", class_="dropdown-account-switcher-header-label-global").text.strip())
+                print(Fore.GREEN + f'- Название магазина: {Fore.MAGENTA}{store_title}{Back.WHITE}' + Back.WHITE)
+                return store_title
+            except AttributeError:
+                store_title = (self.soup.find("button", class_="partner-dropdown-button").find("span").
+                               find("b").text.strip())
+                print(Fore.GREEN + f'- Название магазина: {Fore.MAGENTA}{store_title}{Back.WHITE}' + Back.WHITE)
+                return store_title
         except AttributeError:
             print(Fore.RED + "||| Не смог получить название магазина |||" + Back.WHITE)
             return "!ERROR!"
