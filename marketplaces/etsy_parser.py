@@ -359,7 +359,7 @@ class EtsyParser:
                 for el in postal_service_div:
                     paragraphs = el.find_all("p")
                     for p in paragraphs:
-                        if "Shipping" in p.text:
+                        if "Shipped" in p.text or "Shipping" in p.text:
                             postal_service = p.text.split(" ")[-1]
 
                             print(
