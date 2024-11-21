@@ -126,7 +126,7 @@ class EtsyParser:
             height = int(size[1].strip())
             smaller_size = min(width, height)
             return int(smaller_size)
-        except AttributeError:
+        except (AttributeError, ValueError):
             print(Fore.RED + "||| Не смог получить меньший размер для сортировки |||" + Back.WHITE)
             return "!ERROR!"
 

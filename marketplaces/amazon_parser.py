@@ -362,15 +362,16 @@ class AmazonParser:
     def get_smaller_size(self) -> int | str:
         """Получение меньшего значения в размере товара для сортировки"""
         files = self.__search_link_to_file()
-        if files and isinstance(files, list):
-            for file in files:
-                if file['name'] != 'File Not Found':
-                    size_from_name = file['name'].split(" ")[0]
-                    size = size_from_name.split("x")
-                    width = int(size[0].strip())
-                    height = int(size[1].strip())
-                    smaller_size = min(width, height)
-                    return int(smaller_size)
-        else:
+        try:
+            if files and isinstance(files, list):
+                for file in files:
+                    if file['name'] != 'File Not Found':
+                        size_from_name = file['name'].split(" ")[0]
+                        size = size_from_name.split("x")
+                        width = int(size[0].strip())
+                        height = int(size[1].strip())
+                        smaller_size = min(width, height)
+                        return int(smaller_size)
+        except (ValueError, AttributeError):
             print(Fore.RED + "||| Не смог получить меньший размер для сортировки |||" + Back.WHITE)
             return "!ERROR!"
