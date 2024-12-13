@@ -49,7 +49,7 @@ class EtsyParser:
         shipping_price = self.__get_shipping_price()
         postal_service = self.__get_postal_service()
         tracking_number = self.__get_tracking_number()
-        tracking_link = self.__get_tracking_link()
+        tracking_link = self.__get_tracking_link(postal_service, tracking_number)
         shipping_type = self.__get_shipping_type()
 
         if shipping_label_link == "File Not Found":
@@ -381,12 +381,28 @@ class EtsyParser:
             print(Fore.RED + "||| Не смог получить трек-номер |||" + Back.WHITE)
             return "!ERROR!"
 
-    def __get_tracking_link(self) -> str | list[str] | None:
+    def __get_tracking_link(self, postal_service: str, tracking_number: str) -> str | list[str] | None:
         """Извлечение ссылки на отслеживание посылки"""
         try:
-            tracking_link = self.soup.find("div", class_="col-xs-9 wt-wrap").find("a").get("href")
-            print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
-            return tracking_link
+            if postal_service == "USPS":
+                tracking_link = f"https://tools.usps.com/go/TrackConfirmAction_input?qtc_tLabels1={tracking_number}"
+                print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
+                return tracking_link
+            elif postal_service == "UPS":
+                tracking_link = f"https://www.ups.com/track?TypeOfInquiryNumber=T&InquiryNumber1={tracking_number}&loc=en_US&requester=ST/trackdetails"
+                print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
+                return tracking_link
+            elif postal_service == "FedEx":
+                tracking_link = f"https://www.fedex.com/apps/fedextrack/?tracknumbers={tracking_number}"
+                print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
+                return tracking_link
+            elif postal_service == "DHL":
+                tracking_link = f"https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id={tracking_number}"
+                print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
+                return tracking_link
+            else:
+                tracking_link = self.soup.find("div", class_="col-xs-9 wt-wrap").find("a").get("href")
+                return tracking_link
         except AttributeError:
             print(Fore.RED + "||| Не смог получить ссылку на отслеживание |||" + Back.WHITE)
             return "!ERROR"

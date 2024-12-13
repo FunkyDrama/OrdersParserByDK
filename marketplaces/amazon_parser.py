@@ -257,7 +257,7 @@ class AmazonParser:
             return items_total
         except AttributeError:
             print(Fore.RED + "||| Не смог получить общую сумму за товары |||" + Back.WHITE)
-            return "!ERROR!"
+            return 0
 
     def __get_shipping_total_value(self) -> float | str:
         """Получение стоимости, которую заплатил продавец за шиплейбл"""
@@ -271,7 +271,7 @@ class AmazonParser:
             return float(total_shipping)
         except (AttributeError, ValueError):
             print(Fore.RED + "||| Не смог получить сумму, уплаченную нами за доставку |||" + Back.WHITE)
-            return "!ERROR!"
+            return 0
 
     def __get_shipping_price(self) -> float | int:
         """Цена доставки, которую заплатил клиент"""
@@ -284,7 +284,7 @@ class AmazonParser:
             print(
                 Fore.GREEN + f'- Установленная цена за доставку: {Fore.MAGENTA}{shipping_price_value}{Back.WHITE}' + Back.WHITE)
             return shipping_price_value
-        except AttributeError:
+        except (AttributeError, IndexError):
             print(Fore.RED + "||| Установленная цена за доставку не найдена |||" + Back.WHITE)
             return 0
 
@@ -293,6 +293,8 @@ class AmazonParser:
         try:
             postal_service_divs = self.soup.find("div", class_="a-box-group a-spacing-top-micro")
             postal_service = postal_service_divs.find_all('div', class_="a-column a-span3")[1].text.strip()
+            if postal_service == "UPS®":
+                postal_service.strip("®")
             print(Fore.GREEN + f'- Название почтовой службы: {Fore.MAGENTA}{postal_service}{Back.WHITE}' + Back.WHITE)
             return postal_service
         except AttributeError:
@@ -318,12 +320,12 @@ class AmazonParser:
                 tracking_link = f"https://tools.usps.com/go/TrackConfirmAction_input?qtc_tLabels1={tracking_number}"
                 print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
                 return tracking_link
-            elif postal_service == "UPS":
+            elif postal_service == "UPS" or postal_service == "UPS®":
                 tracking_link = f"https://www.ups.com/track?TypeOfInquiryNumber=T&InquiryNumber1={tracking_number}&loc=en_US&requester=ST/trackdetails"
                 print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
                 return tracking_link
             elif postal_service == "FedEx":
-                tracking_link = "https://www.fedex.com/en-us/home.html"
+                tracking_link = f"https://www.fedex.com/apps/fedextrack/?tracknumbers={tracking_number}"
                 print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
                 return tracking_link
             elif postal_service == "DHL":
