@@ -293,8 +293,6 @@ class AmazonParser:
         try:
             postal_service_divs = self.soup.find("div", class_="a-box-group a-spacing-top-micro")
             postal_service = postal_service_divs.find_all('div', class_="a-column a-span3")[1].text.strip()
-            if postal_service == "UPS®":
-                postal_service.strip("®")
             print(Fore.GREEN + f'- Название почтовой службы: {Fore.MAGENTA}{postal_service}{Back.WHITE}' + Back.WHITE)
             return postal_service
         except AttributeError:

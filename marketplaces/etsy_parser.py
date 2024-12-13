@@ -350,6 +350,8 @@ class EtsyParser:
             # Парсит название при покупке шиплейбла на Этси
             postal_service = self.soup.find("div", class_="text-truncate").find_next(
                 "div", class_="pl-xs-1 mr-xs-2").find("p", class_="text-truncate").text.split(" ")[0]
+            if postal_service == "UPS®":
+                postal_service = postal_service.strip("®")
             print(Fore.GREEN + f'- Название почтовой службы: {Fore.MAGENTA}{postal_service}{Back.WHITE}' + Back.WHITE)
             return postal_service
         except AttributeError:
