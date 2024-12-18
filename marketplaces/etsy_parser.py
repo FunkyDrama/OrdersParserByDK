@@ -118,14 +118,14 @@ class EtsyParser:
 
         return order_items
 
-    def get_smaller_size(self) -> int | str:
+    def get_smaller_size(self) -> float | str:
         """Получение меньшего значения в размере товара для сортировки"""
         try:
             size = self.size.split("x")
-            width = int(size[0].strip())
-            height = int(size[1].strip())
+            width = float(size[0].strip())
+            height = float(size[1].strip())
             smaller_size = min(width, height)
-            return int(smaller_size)
+            return float(smaller_size)
         except (AttributeError, ValueError):
             print(Fore.RED + "||| Не смог получить меньший размер для сортировки |||" + Back.WHITE)
             return "!ERROR!"

@@ -21,7 +21,7 @@ class GSheetWriter:
         self.client = gspread.service_account('config/token.json')
         self.spreadsheet = self.client.open_by_key(settings.TABLE_ID)
 
-    def __sort_by_sheets(self, extension: str, smaller_size: int | str) -> Worksheet:
+    def __sort_by_sheets(self, extension: str, smaller_size: float | str) -> Worksheet:
         """Сортировка по листам, используя размер и расширение файла"""
         if not extension == 'Unknown':
             if extension == "png" or extension == "jpg" or extension == "jpeg" or extension == "eps":
