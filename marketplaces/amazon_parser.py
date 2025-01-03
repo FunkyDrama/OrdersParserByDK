@@ -35,7 +35,8 @@ class AmazonParser:
         if not files:
             files = [{'link': 'File Not Found', 'name': 'File Not Found'}]
         if shipping_label_link == "File Not Found":
-            file_result = self.finder.search_file_by_name(query=f"name contains '{self.order_id}' and name contains '.pdf'")
+            file_result = self.finder.search_file_by_name(
+                query=f"name contains '{self.order_id}' and name contains '.pdf'")
             shipping_label_link = file_result[0]['link'] if file_result else 'File Not Found'
 
         order_items = []
@@ -277,10 +278,13 @@ class AmazonParser:
         """Цена доставки, которую заплатил клиент"""
         try:
             order_total = self.soup.find("div", class_="a-row a-spacing-none order-details-bordered-box-sale-proceeds")
-            shipping_total = order_total.find_all("td")[3].find("span", class_="a-color-").text.strip()
-            if shipping_total.startswith("CA"):
-                shipping_total = shipping_total.replace("CA", "")
-            shipping_price_value = float(shipping_total.strip("$"))
+            if "Shipping total" in order_total.text:
+                shipping_total = order_total.find_all("td")[3].find("span", class_="a-color-").text.strip()
+                if shipping_total.startswith("CA"):
+                    shipping_total = shipping_total.replace("CA", "")
+                shipping_price_value = float(shipping_total.strip("$"))
+            else:
+                shipping_price_value = 0
             print(
                 Fore.GREEN + f'- Установленная цена за доставку: {Fore.MAGENTA}{shipping_price_value}{Back.WHITE}' + Back.WHITE)
             return shipping_price_value
