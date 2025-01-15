@@ -27,6 +27,26 @@ class EtsyParser:
         print(Fore.GREEN + f'- Дата обработки заказа: {Fore.MAGENTA}{self.today}{Back.WHITE}' + Back.WHITE)
         return self.today
 
+    def __ship_by_date(self) -> str:
+        """Метод для получения даты отправки, если она есть"""
+        try:
+            block = self.soup.find("div",
+                                   class_="flag-img flag-img-right text-right vertical-align-top hide-xs hide-sm")
+            if not block:
+                block = self.soup.find("div", class_="wt-text-title")
+            block_text = block.find("p", class_="text-body-smaller text-gray-lightest mt-xs-1").text.strip()
+            if "Buyer notification" in block_text:
+                date_match = re.search(r'\b\w{3}\s\d{1,2},\s\d{4}\b', block_text)
+                if date_match:
+                    date_str = date_match.group()
+                    date_obj = datetime.datetime.strptime(date_str, "%b %d, %Y")
+                    formatted_date = date_obj.strftime("%d.%m.%Y")
+                    print(Fore.GREEN + f'- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}' + Back.WHITE)
+                    return formatted_date
+            return self.__get_parse_date(self)
+        except AttributeError:
+            return self.__get_parse_date(self)
+
     def __search_link_to_file(self) -> list[dict[str, Any]] | None:
         """Метод поиска ссылки на файл по номеру заказа или SKU"""
         file_link = self.finder.search_file_by_name(
@@ -51,6 +71,9 @@ class EtsyParser:
         tracking_number = self.__get_tracking_number()
         tracking_link = self.__get_tracking_link(postal_service, tracking_number)
         shipping_type = self.__get_shipping_type()
+        ship_by_date = self.__ship_by_date()
+        gift_details = self.__get_gift_details()
+        vat_details = self.__get_vat_information()
 
         if shipping_label_link == "File Not Found":
             file_result = self.finder.search_file_by_name(
@@ -93,6 +116,10 @@ class EtsyParser:
 
             order_data = {
                 'Status': None,
+                'Additional Info': "\n".join(filter(None, [gift_details, vat_details,
+                                                           shipping_type if not (shipping_type.startswith("Standard")
+                                                                            or shipping_type.startswith(
+                                                               "Free")) else None])),
                 'Date': date,
                 'Store': store_title,
                 'Channel': 'Etsy',
@@ -106,6 +133,7 @@ class EtsyParser:
                 'File Link': matched_file_link,
                 'Shipping label link': shipping_label_link,
                 'Track ID': tracking_number,
+                'Ship By': ship_by_date,
                 'Postal Service': postal_service,
                 'Shipping speed': shipping_type,
                 'Track package': tracking_link,
@@ -419,3 +447,32 @@ class EtsyParser:
         except AttributeError:
             print(Fore.RED + "||| Тип доставки не найден |||" + Back.WHITE)
             return "!ERROR!"
+
+    def __get_gift_details(self) -> str | None:
+        try:
+            gift_details = self.soup.find("h4", class_="mb-xs-2").text.strip()
+            if gift_details and gift_details == "Gift details":
+                gift_block = self.soup.find("div", class_="col-xs-12 col-md-6 pl-xs-0")
+                gift_spans = gift_block.find_all("span", class_="ml-xs-1 text-gray")
+                gift_texts = [span.get_text(strip=True) for span in gift_spans]
+                gift_info = ""
+                for span in gift_texts:
+                    gift_info += f"{span}\n"
+                return gift_info.strip()
+        except AttributeError:
+            return None
+
+    def __get_vat_information(self) -> str | None:
+        try:
+            vat_collected = self.soup.find("span",
+                                           class_="wt-badge wt-ml-xs-1 wt-badge--notificationPrimary").text.strip()
+            if vat_collected == "VAT Collected":
+                vat_block = self.soup.find("div", class_="panel mb-xs-0 mt-xs-2") \
+                    .find("div", class_="wt-panel wt-display-block wt-p-xs-3 text-body-smaller wt-bg-gray") \
+                    .find("p")
+
+                if vat_block:
+                    vat_text = " ".join(vat_block.stripped_strings)
+                    return vat_text
+        except AttributeError:
+            return None

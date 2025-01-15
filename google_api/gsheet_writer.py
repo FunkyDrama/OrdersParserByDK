@@ -4,6 +4,7 @@ import gspread
 from colorama import Fore, Back
 from google.oauth2 import service_account
 from gspread import Worksheet
+from gspread.utils import ValueInputOption
 
 from config.settings import settings
 from google_api.gdrive_finder import resource_path
@@ -24,27 +25,28 @@ class GSheetWriter:
     def __sort_by_sheets(self, extension: str, smaller_size: float | str) -> Worksheet:
         """Сортировка по листам, используя размер и расширение файла"""
         if not extension == 'Unknown':
-            if extension == "png" or extension == "jpg" or extension == "jpeg" or extension == "eps":
+            if extension in {"png", "jpg", "jpeg", "eps"}:
                 worksheet = self.spreadsheet.worksheet("Colored")
                 return worksheet
             # elif self.extension == "jpg":
             #     worksheet = self.spreadsheet.worksheet("Posters")
             #     return worksheet
-            elif smaller_size <= 22 and not extension == "png" and not extension == "jpg" and not extension == "eps":
-                worksheet = self.spreadsheet.worksheet("22 roll")
-                return worksheet
-            elif smaller_size > 22 and not extension == "png" and not extension == "jpg" and not extension == "eps":
-                worksheet = self.spreadsheet.worksheet("46 roll")
-                return worksheet
-        else:
-            print(Fore.YELLOW +
-                  '---Файл заказа не найден на диске, поэтому не смог определить расширение файла и отсортировать по листу.\n'
-                  'Заказ был добавлен на лист ERROR---' + Back.WHITE)
-            worksheet = self.spreadsheet.worksheet("ERROR")
-            return worksheet
+            elif isinstance(smaller_size, float):
+                if smaller_size <= 22 and not extension in {"png", "jpg", "eps", "jpeg"}:
+                    worksheet = self.spreadsheet.worksheet("22 roll")
+                    return worksheet
+                elif smaller_size > 22 and not extension in {"png", "jpg", "eps", "jpeg"}:
+                    worksheet = self.spreadsheet.worksheet("46 roll")
+                    return worksheet
+
+        print(Fore.YELLOW +
+              '---Файл заказа не найден на диске, поэтому не смог определить расширение файла и отсортировать по листу.\n'
+              'Заказ был добавлен на лист ERROR---' + Back.WHITE)
+        worksheet = self.spreadsheet.worksheet("ERROR")
+        return worksheet
 
     def append_order(self, order_items: List[Dict[str, None | str | int]], extension: str,
-                     smaller_size: int | str) -> None:
+                     smaller_size: float | str) -> None:
         """Добавление данных в таблицу Google Sheets с закрашиванием ячеек, установкой стратегии обрезки текста и объединением ячеек"""
 
         worksheet = self.__sort_by_sheets(extension, smaller_size)
@@ -85,7 +87,7 @@ class GSheetWriter:
                     row_data[col_index] = value  # Заполнить значение
 
             # Добавить строку данных в таблицу в первую доступную строку
-            worksheet.insert_row(row_data, index=next_available_row)
+            worksheet.insert_row(row_data, index=next_available_row, value_input_option=ValueInputOption.user_entered)
             new_row_index = next_available_row  # Текущая строка, куда добавлен товар
             next_available_row += 1  # Обновляем номер строки после вставки
 
@@ -184,4 +186,4 @@ class GSheetWriter:
         if merge_requests:
             worksheet.spreadsheet.batch_update({"requests": merge_requests})
 
-        print(Fore.GREEN + "<<<Заказ добавлен в таблицу>>>")
+        print(Fore.GREEN + "\n<<<Заказ добавлен в таблицу>>>\n")

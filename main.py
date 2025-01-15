@@ -24,7 +24,7 @@ init(autoreset=True)
 
 def main() -> None:
     """Основная функция, которая запускает программу"""
-    print(Fore.CYAN + "---Orders Parser v1.7 by Daniel K---" + Back.WHITE)
+    print(Fore.CYAN + "---Orders Parser v2.0 by Daniel K---" + Back.WHITE)
 
     def get_executable_dir() -> str | LiteralString:
         """ Возвращает путь к директории, где находится исполняемый файл или скрипт """

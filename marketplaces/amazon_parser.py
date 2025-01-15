@@ -30,6 +30,7 @@ class AmazonParser:
         tracking_number = self.__get_tracking_number()
         tracking_link = self.__get_tracking_link(postal_service, tracking_number)
         shipping_type = self.__get_shipping_type()
+        ship_by_date = self.__ship_by_date()
 
         files = self.__search_link_to_file()
         if not files:
@@ -57,6 +58,8 @@ class AmazonParser:
 
             order_data = {
                 'Status': None,
+                'Additional Info': shipping_type if not (shipping_type.startswith("Standard")
+                                                    or shipping_type.startswith("Free")) else None,
                 'Date': date,
                 'Store': store_title,
                 'Channel': 'Amazon',
@@ -70,6 +73,7 @@ class AmazonParser:
                 'File Link': file_link,
                 'Shipping label link': shipping_label_link,
                 'Track ID': tracking_number,
+                'Ship By': ship_by_date,
                 'Postal Service': postal_service,
                 'Shipping speed': shipping_type,
                 'Track package': tracking_link,
@@ -231,7 +235,7 @@ class AmazonParser:
             customization_items = ''.join(
                 [line.text + '\n' for line in customization_block.find_all('div')][3::]).replace('\xa0', ' ')
             print(Fore.GREEN + f'- Кастомизация: {Fore.MAGENTA}{customization_items}{Back.WHITE}' + Back.WHITE)
-            return customization_items
+            return customization_items.strip()
         except AttributeError:
             print(Fore.YELLOW + "||| Не смог получить кастомизацию, возможно, она не указана |||" + Back.WHITE)
             return ""
@@ -291,6 +295,21 @@ class AmazonParser:
         except (AttributeError, IndexError):
             print(Fore.RED + "||| Установленная цена за доставку не найдена |||" + Back.WHITE)
             return 0
+
+    def __ship_by_date(self) -> str:
+        try:
+            div = self.soup.find("div", class_="a-box-group a-spacing-top-micro")
+            date_div = div.find_all('div', class_="a-column a-span3")[0].text.strip()
+            if date_div:
+                formatted_date = datetime.datetime.strptime(date_div, "%a, %b %d, %Y").strftime("%d.%m.%Y")
+            else:
+                formatted_date = self.__get_parse_date(self)
+            print(Fore.GREEN + f'- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}' + Back.WHITE)
+            return formatted_date
+        except AttributeError:
+            formatted_date = self.__get_parse_date(self)
+            print(Fore.GREEN + f'- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}' + Back.WHITE)
+            return formatted_date
 
     def __get_postal_service(self) -> str:
         """Извлечение названия почтовой службы"""
@@ -371,11 +390,15 @@ class AmazonParser:
                 for file in files:
                     if file['name'] != 'File Not Found':
                         size_from_name = file['name'].split(" ")[0]
+                        if "," in size_from_name:
+                            size_from_name = size_from_name.replace(",", ".")
                         size = size_from_name.split("x")
                         width = float(size[0].strip())
                         height = float(size[1].strip())
                         smaller_size = min(width, height)
                         return float(smaller_size)
+            print(Fore.RED + "||| Не смог получить меньший размер для сортировки |||" + Back.WHITE)
+            return "!ERROR!"
         except (ValueError, AttributeError):
             print(Fore.RED + "||| Не смог получить меньший размер для сортировки |||" + Back.WHITE)
             return "!ERROR!"
