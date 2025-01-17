@@ -74,6 +74,7 @@ class EtsyParser:
         ship_by_date = self.__ship_by_date()
         gift_details = self.__get_gift_details()
         vat_details = self.__get_vat_information()
+        customer_note = self.__get_customer_note()
 
         if shipping_label_link == "File Not Found":
             file_result = self.finder.search_file_by_name(
@@ -116,10 +117,10 @@ class EtsyParser:
 
             order_data = {
                 'Status': None,
-                'Additional Info': "\n".join(filter(None, [gift_details, vat_details,
+                'Additional Info': "\n".join(filter(None, [gift_details, vat_details, customer_note,
                                                            shipping_type if not (shipping_type.startswith("Standard")
-                                                                            or shipping_type.startswith(
-                                                               "Free")) else None])),
+                                                                                 or shipping_type.startswith(
+                                                                       "Free")) else None])),
                 'Date': date,
                 'Store': store_title,
                 'Channel': 'Etsy',
@@ -275,20 +276,13 @@ class EtsyParser:
     @staticmethod
     def __get_customization(item: Any) -> LiteralString | None:
         """Извлечение и преобразование кастомизации из заказа"""
-        customization_block = item.find("div", class_="flag-body prose").find_all("li")
-        customization_items = " \n".join([li.get_text() for li in customization_block])
-
         try:
-            customer_info = (item.find("div", class_="order-detail-buyer-note bg-blinding-sandstorm panel pointer"
-                                                     " pointer-top-left text-body-smaller p-xs-2 mt-xs-2 mb-xs-0").
-                             find("pre", class_="note").
-                             find("span", {'data-test-id': 'unsanitize'})).text.strip()
-            customization_items += f"\nBuyer Note: {customer_info}"
-            print(Fore.GREEN + f'- Кастомизация:\n  {Fore.MAGENTA}{customization_items}{Back.WHITE}' + Back.WHITE)
+            customization_block = item.find("div", class_="flag-body prose").find_all("li")
+            customization_items = " \n".join([li.get_text() for li in customization_block])
+            print(Fore.GREEN + f'- Кастомизация:\n{Fore.MAGENTA}{customization_items}{Back.WHITE}' + Back.WHITE)
+            return customization_items
         except AttributeError:
-            customer_info = None
-
-        return customization_items
+            return ""
 
     @staticmethod
     def __get_size(item: Any) -> str:
@@ -474,5 +468,15 @@ class EtsyParser:
                 if vat_block:
                     vat_text = " ".join(vat_block.stripped_strings)
                     return vat_text
+        except AttributeError:
+            return None
+
+    def __get_customer_note(self) -> str | None:
+        try:
+            customer_info = (self.soup.find("div", class_="order-detail-buyer-note bg-blinding-sandstorm panel pointer"
+                                                          " pointer-top-left text-body-smaller p-xs-2 mt-xs-2 mb-xs-0").
+                             find("pre", class_="note").
+                             find("span", {'data-test-id': 'unsanitize'})).text.strip()
+            return f"Buyer's message: {customer_info}"
         except AttributeError:
             return None
