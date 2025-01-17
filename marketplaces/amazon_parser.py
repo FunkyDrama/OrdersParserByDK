@@ -59,7 +59,7 @@ class AmazonParser:
             order_data = {
                 'Status': None,
                 'Additional Info': shipping_type if not (shipping_type.startswith("Standard")
-                                                    or shipping_type.startswith("Free")) else None,
+                                                         or shipping_type.startswith("Free")) else None,
                 'Date': date,
                 'Store': store_title,
                 'Channel': 'Amazon',
@@ -324,14 +324,21 @@ class AmazonParser:
 
     def __get_tracking_number(self) -> str:
         """Извлечение трек-номера"""
-        try:
-            tracking_number = self.soup.find("a", class_="a-popover-trigger a-declarative",
-                                             attrs={"data-test-id": "tracking-id-value"}).text.strip()
+        tracking_number = self.soup.find("a", class_="a-popover-trigger a-declarative",
+                                         attrs={"data-test-id": "tracking-id-value"})
+        if tracking_number:
+            tracking_number = tracking_number.text.strip()
             print(Fore.GREEN + f'- Трек-номер: {Fore.MAGENTA}{tracking_number}{Back.WHITE}' + Back.WHITE)
             return tracking_number
-        except AttributeError:
-            print(Fore.RED + "||| Не смог получить трек-номер |||" + Back.WHITE)
-            return "!ERROR!"
+
+        tracking_number = self.soup.find("span", attrs={"data-test-id": "tracking-id-value"})
+        if tracking_number:
+            tracking_number = tracking_number.text.strip()
+            print(
+                Fore.GREEN + f'- Трек-номер, если шиплейбл куплен не на Амазон: {Fore.MAGENTA}{tracking_number}{Back.WHITE}' + Back.WHITE)
+            return tracking_number
+        print(Fore.RED + "||| Не смог получить трек-номер |||" + Back.WHITE)
+        return "!ERROR!"
 
     @staticmethod
     def __get_tracking_link(postal_service: str, tracking_number: str) -> str:
