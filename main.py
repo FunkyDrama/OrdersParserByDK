@@ -18,13 +18,14 @@ from colorama import Fore, init, Back
 from marketplaces.amazon_parser import AmazonParser
 from marketplaces.etsy_parser import EtsyParser
 from google_api.gsheet_writer import GSheetWriter
+from marketplaces.wayfair_parser import WayfairParser
 
 init(autoreset=True)
 
 
 def main() -> None:
     """Основная функция, которая запускает программу"""
-    print(Fore.CYAN + "---Orders Parser v2.0.2 by Daniel K---" + Back.WHITE)
+    print(Fore.CYAN + "---Orders Parser v3.0 by Daniel K---" + Back.WHITE)
 
     def get_executable_dir() -> str | LiteralString:
         """ Возвращает путь к директории, где находится исполняемый файл или скрипт """
@@ -63,6 +64,14 @@ def main() -> None:
                 order_data = amazon_parser.parse_order()
                 extension = amazon_parser.get_extension()
                 smaller_size = amazon_parser.get_smaller_size()
+                writer = GSheetWriter()
+                writer.append_order(order_data, extension, smaller_size)
+            elif "https://partners.wayfair.com/v/landing/index" in order:
+                print(Fore.LIGHTMAGENTA_EX + "----- Новый заказ Wayfair -----" + Back.WHITE)
+                wayfair_parser = WayfairParser(order)
+                order_data = wayfair_parser.parse_order()
+                extension = wayfair_parser.get_extension()
+                smaller_size = wayfair_parser.get_smaller_size()
                 writer = GSheetWriter()
                 writer.append_order(order_data, extension, smaller_size)
 

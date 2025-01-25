@@ -43,6 +43,7 @@ class AmazonParser:
         order_items = []
         items = self.soup.find('table', class_="a-keyvalue").find('tbody').find_all('tr')
 
+        file_index = 0
         for item in items:
             listing_title = self.__get_listing_title(item)
             listing_link = self.__get_listing_link(item)
@@ -50,11 +51,16 @@ class AmazonParser:
             quantity = self.__get_quantity(item)
             customization = self.__get_customization(item)
 
-            file_link = "File Not Found"
-            for file in files:
-                if file['name'] != 'File Not Found':
-                    file_link = file['link']
-                    break
+            # file_link = "File Not Found"
+            # for file in files:
+            #     if file['name'] != 'File Not Found':
+            #         file_link = file['link']
+            #         break
+            if file_index < len(files) and files[file_index]['name'] != 'File Not Found':
+                file_link = files[file_index]['link']
+                file_index += 1
+            else:
+                file_link = "File Not Found"
 
             order_data = {
                 'Status': None,
@@ -297,6 +303,7 @@ class AmazonParser:
             return 0
 
     def __ship_by_date(self) -> str:
+        """Извлечение крайней даты отправки посылки"""
         try:
             div = self.soup.find("div", class_="a-box-group a-spacing-top-micro")
             date_div = div.find_all('div', class_="a-column a-span3")[0].text.strip()

@@ -28,7 +28,7 @@ class EtsyParser:
         return self.today
 
     def __ship_by_date(self) -> str:
-        """Метод для получения даты отправки, если она есть"""
+        """Извлечение крайней даты отправки посылки"""
         try:
             block = self.soup.find("div",
                                    class_="flag-img flag-img-right text-right vertical-align-top hide-xs hide-sm")
@@ -443,6 +443,7 @@ class EtsyParser:
             return "!ERROR!"
 
     def __get_gift_details(self) -> str | None:
+        """Извлечение данных о подарочной упаковке и открытке при их наличии"""
         try:
             gift_details = self.soup.find("h4", class_="mb-xs-2").text.strip()
             if gift_details and gift_details == "Gift details":
@@ -457,6 +458,7 @@ class EtsyParser:
             return None
 
     def __get_vat_information(self) -> str | None:
+        """Изучение таможенных данных, если они есть"""
         try:
             vat_collected = self.soup.find("span",
                                            class_="wt-badge wt-ml-xs-1 wt-badge--notificationPrimary").text.strip()
@@ -472,6 +474,7 @@ class EtsyParser:
             return None
 
     def __get_customer_note(self) -> str | None:
+        """Извлечение примечания от клиента при его наличии"""
         try:
             customer_info = (self.soup.find("div", class_="order-detail-buyer-note bg-blinding-sandstorm panel pointer"
                                                           " pointer-top-left text-body-smaller p-xs-2 mt-xs-2 mb-xs-0").
