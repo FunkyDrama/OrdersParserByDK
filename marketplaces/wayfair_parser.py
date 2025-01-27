@@ -182,22 +182,22 @@ class WayfairParser:
         try:
             tracking_numbers = tracking_number.split("\n") if "\n" in tracking_number else [
                 tracking_number]
-            tracking_links = []
+            tracking_links = set()
             for number in tracking_numbers:
                 tracking_link = None
                 if postal_service == "USPS":
                     tracking_link = f"https://tools.usps.com/go/TrackConfirmAction_input?qtc_tLabels1={number}"
-                    tracking_links.append(tracking_link)
+                    tracking_links.add(tracking_link)
                 elif postal_service == "UPS" or postal_service == "UPS®":
                     tracking_link = f"https://www.ups.com/track?TypeOfInquiryNumber=T&InquiryNumber1={number}&loc=en_US&requester=ST/trackdetails"
-                    tracking_links.append(tracking_link)
+                    tracking_links.add(tracking_link)
                 elif postal_service == "FedEx":
                     tracking_link = f"https://www.fedex.com/apps/fedextrack/?tracknumbers={number}"
-                    tracking_links.append(tracking_link)
+                    tracking_links.add(tracking_link)
                 elif postal_service == "DHL":
                     tracking_link = f"https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id={number}"
                 print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
-                tracking_links.append(tracking_link)
+                tracking_links.add(tracking_link)
             links = "\n\n".join(tracking_links)
             return links
         except AttributeError:
@@ -306,7 +306,7 @@ class WayfairParser:
                 color = None
                 if "(" in self.sku or ")" in self.sku:
                     color_1 = self.sku.replace(")", " ").replace("(", " ")
-                    color_str = color_1.split(" ")
+                    color_str = color_1.split()
                     color = color_str[2].strip()
                     if len(color) < 3:
                         color = " ".join(color_str[-2:]).title()
@@ -323,7 +323,7 @@ class WayfairParser:
                     break
 
             if customization_index is None:
-                raise ValueError("Колонка 'Customization Text' не найдена!")
+                customization_index = 0
 
             cells = item.find_all("td")
             if len(cells) > customization_index:

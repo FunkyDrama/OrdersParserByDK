@@ -240,7 +240,7 @@ class AmazonParser:
             customization_block = item.find("div", class_="a-row a-expander-container a-expander-extend-container")
             customization_items = ''.join(
                 [line.text + '\n' for line in customization_block.find_all('div')][3::]).replace('\xa0', ' ')
-            print(Fore.GREEN + f'- Кастомизация: {Fore.MAGENTA}{customization_items}{Back.WHITE}' + Back.WHITE)
+            print(Fore.GREEN + f'- Кастомизация:\n{Fore.MAGENTA}{customization_items}{Back.WHITE}' + Back.WHITE)
             return customization_items.strip()
         except AttributeError:
             print(Fore.YELLOW + "||| Не смог получить кастомизацию, возможно, она не указана |||" + Back.WHITE)
