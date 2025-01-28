@@ -47,17 +47,12 @@ class WayfairParser:
             listing_title = self.__get_listing_title(item)
             self.sku = self.__get_sku(item)
             size = self.__get_size()
-            customization = self.__get_customization(item, size)
+            color = self.__get_color()
+            customization = self.__get_customization(item, size, color)
             quantity = self.__get_quantity(item)
 
             listing_url = listing_links[items.index(item)] if items.index(item) < len(
                 listing_links) else 'File Not Found'
-
-            # file_link = "File Not Found"
-            # for file in files:
-            #     if file['name'] != 'File Not Found':
-            #         file_link = file['link']
-            #         break
 
             if file_index < len(files) and files[file_index]['name'] != 'File Not Found':
                 file_link = files[file_index]['link']
@@ -293,7 +288,7 @@ class WayfairParser:
             print(Fore.RED + "||| Не смог получить SKU |||" + Back.WHITE)
             return "!ERROR!"
 
-    def __get_customization(self, item, size) -> str:
+    def __get_customization(self, item, size, color) -> str:
         """Извлечение кастомизации из заказа"""
         try:
             customization_list = []
@@ -302,18 +297,9 @@ class WayfairParser:
                 size_customization = f'Size: {size}'
                 customization_list.append(size_customization)
 
-            try:
-                color = None
-                if "(" in self.sku or ")" in self.sku:
-                    color_1 = self.sku.replace(")", " ").replace("(", " ")
-                    color_str = color_1.split()
-                    color = color_str[2].strip()
-                    if len(color) < 3:
-                        color = " ".join(color_str[-2:]).title()
+            if color:
                 color_customization = f'Color: {color.title().strip()}'
                 customization_list.append(color_customization)
-            except IndexError:
-                pass
 
             headers = self.soup.find("thead").find_all("th")
             customization_index = None
@@ -341,6 +327,17 @@ class WayfairParser:
         except ValueError as e:
             print(Fore.RED + f"||| Ошибка: {e} |||" + Back.WHITE)
             return ""
+
+    def __get_color(self) -> str | None:
+        """Извлечение цвета из part number"""
+        try:
+            color_str = self.sku.replace(")", " ").replace("(", " ").split()
+            color = color_str[2].strip()
+            if len(color) < 3:
+                color = " ".join(color_str[-2:]).title()
+            return color.title().strip()
+        except IndexError:
+            return None
 
     def __get_size(self) -> str | None:
         """Извлечение размера товара"""
