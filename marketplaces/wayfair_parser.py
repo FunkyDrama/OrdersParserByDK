@@ -118,7 +118,7 @@ class WayfairParser:
             print(Fore.RED + "||| Не смог получить название магазина |||" + Back.WHITE)
             return "!ERROR!"
 
-    def __get_address(self) -> str:
+    def __get_address(self) -> str | None:
         """Извлечение адреса"""
         try:
             address_block = self.soup.find_all("div", attrs={"data-tag-default": "order-details_orderDetails_Text_46"})[
@@ -204,6 +204,8 @@ class WayfairParser:
         try:
             shipping_type = self.soup.find_all("strong", attrs={"data-tag-default": "order-details_orderDetails_Text"})[
                 8].text.strip()
+            if shipping_type.startswith("FedEx"):
+                shipping_type = shipping_type.replace("FedEx", "")
             print(Fore.GREEN + f'- Тип доставки: {Fore.MAGENTA}{shipping_type}{Back.WHITE}' + Back.WHITE)
             return shipping_type
         except (AttributeError, IndexError):

@@ -348,7 +348,7 @@ class AmazonParser:
         return "!ERROR!"
 
     @staticmethod
-    def __get_tracking_link(postal_service: str, tracking_number: str) -> str:
+    def __get_tracking_link(postal_service: str, tracking_number: str) -> str | None:
         """Извлечение ссылки на отслеживание посылки"""
         try:
             if postal_service == "USPS":

@@ -318,7 +318,7 @@ class EtsyParser:
             print(Fore.RED + "||| Не смог получить количество |||" + Back.WHITE)
             return "!ERROR!"
 
-    def __get_shipping_price(self) -> float | str:
+    def __get_shipping_price(self) -> None | str | float:
         """Цена доставки, которую заплатил клиент"""
         try:
             shipping_items = self.soup.find_all("li", class_="col-group wt-p-xs-0 wt-mt-xs-1 wt-mb-xs-1")
@@ -366,7 +366,7 @@ class EtsyParser:
             print(Fore.RED + "||| Не смог получить сумму, уплаченную нами за доставку |||" + Back.WHITE)
             return "!ERROR!"
 
-    def __get_postal_service(self) -> str:
+    def __get_postal_service(self) -> str | None | Any:
         """Извлечение названия почтовой службы"""
         try:
             # Парсит название при покупке шиплейбла на Этси
@@ -429,13 +429,15 @@ class EtsyParser:
                 return tracking_link
         except AttributeError:
             print(Fore.RED + "||| Не смог получить ссылку на отслеживание |||" + Back.WHITE)
-            return "!ERROR"
+            return "!ERROR!"
 
     def __get_shipping_type(self) -> str:
         """Извлечение типа доставки"""
         try:
             shipping_type = (self.soup.find("div", class_="strong text-body-smaller").
                              find("span", {'data-test-id': 'unsanitize'}).text.strip())
+            if shipping_type == "Standard Shipping":
+                shipping_type = "Standard"
             print(Fore.GREEN + f'- Тип доставки: {Fore.MAGENTA}{shipping_type}{Back.WHITE}' + Back.WHITE)
             return shipping_type
         except AttributeError:
