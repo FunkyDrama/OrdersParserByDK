@@ -149,6 +149,10 @@ class WayfairParser:
             postal_service = \
                 self.soup.find_all("strong", attrs={"data-tag-default": "order-details_orderDetails_Text"})[
                     6].text.strip()
+            if postal_service == "Order Not Processed On Time":
+                postal_service = \
+                self.soup.find_all("strong", attrs={"data-tag-default": "order-details_orderDetails_Text"})[
+                    8].text.strip()
             print(Fore.GREEN + f'- Служба доставки: {Fore.MAGENTA}{postal_service}{Back.WHITE}' + Back.WHITE)
             return postal_service
         except (AttributeError, IndexError):
@@ -267,7 +271,7 @@ class WayfairParser:
                 if title.find_parent("div", class_="b62nt5ct")
             ]
             listing_titles = "".join(listing_titles)
-            print(Fore.GREEN + f" - Название товара: {Fore.MAGENTA}{listing_titles}{Back.WHITE}" + Back.WHITE)
+            print(Fore.GREEN + f"- Название товара: {Fore.MAGENTA}{listing_titles}{Back.WHITE}" + Back.WHITE)
             return listing_titles
         except AttributeError:
             print(Fore.RED + "||| Не смог получить название листинга |||" + Back.WHITE)
@@ -284,7 +288,7 @@ class WayfairParser:
                 if sku.find_parent("div", class_="b62nt511k b62nt5h3 b62nt59r b62nt5173")
             ]
             sku = "".join(skus)
-            print(Fore.GREEN + f" - SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}" + Back.WHITE)
+            print(Fore.GREEN + f"- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}" + Back.WHITE)
             return sku
         except AttributeError:
             print(Fore.RED + "||| Не смог получить SKU |||" + Back.WHITE)
@@ -320,7 +324,7 @@ class WayfairParser:
                     customization_list.append(f'Personalization: {customization_text}')
 
             customization = "\n".join(customization_list)
-            print(Fore.GREEN + f" - Кастомизация:\n{Fore.MAGENTA}{customization}{Back.WHITE}" + Back.WHITE)
+            print(Fore.GREEN + f"- Кастомизация:\n{Fore.MAGENTA}{customization}{Back.WHITE}" + Back.WHITE)
             return customization
 
         except AttributeError:
@@ -369,7 +373,7 @@ class WayfairParser:
                 quantity.find_parent("td", class_="b62nt5ib b62nt5l b62nt517n b62nt514w b62nt5101 b62nt518x _9pl4ko0")
             ]
             quantity = "".join(quantities[2])
-            print(Fore.GREEN + f" - Количество: {Fore.MAGENTA}{quantity}{Back.WHITE}" + Back.WHITE)
+            print(Fore.GREEN + f"- Количество: {Fore.MAGENTA}{quantity}{Back.WHITE}" + Back.WHITE)
             return int(quantity)
         except AttributeError:
             print(Fore.RED + "||| Не смог получить количество |||" + Back.WHITE)

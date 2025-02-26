@@ -164,7 +164,7 @@ class AmazonParser:
         try:
             listing_title = (item.
                              find("div", class_="more-info-column-word-wrap-break-word").text.strip("\""))
-            print(Fore.GREEN + f" - Название товара: {Fore.MAGENTA}{listing_title}{Back.WHITE}" + Back.WHITE)
+            print(Fore.GREEN + f"- Название товара: {Fore.MAGENTA}{listing_title}{Back.WHITE}" + Back.WHITE)
             return listing_title
         except AttributeError:
             print(Fore.RED + "||| Не смог получить название листинга |||" + Back.WHITE)

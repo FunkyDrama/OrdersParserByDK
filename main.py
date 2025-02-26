@@ -18,6 +18,7 @@ from colorama import Fore, init, Back
 from marketplaces.amazon_parser import AmazonParser
 from marketplaces.etsy_parser import EtsyParser
 from google_api.gsheet_writer import GSheetWriter
+from marketplaces.overstock_parser import OverstockParser
 from marketplaces.wayfair_parser import WayfairParser
 
 init(autoreset=True)
@@ -25,7 +26,7 @@ init(autoreset=True)
 
 def main() -> None:
     """Основная функция, которая запускает программу"""
-    print(Fore.CYAN + "---Orders Parser v3.1.0 by Daniel K---" + Back.WHITE)
+    print(Fore.CYAN + "---Orders Parser v4.0 by Daniel K---" + Back.WHITE)
 
     def get_executable_dir() -> str | LiteralString:
         """ Возвращает путь к директории, где находится исполняемый файл или скрипт """
@@ -72,6 +73,14 @@ def main() -> None:
                 order_data = wayfair_parser.parse_order()
                 extension = wayfair_parser.get_extension()
                 smaller_size = wayfair_parser.get_smaller_size()
+                writer = GSheetWriter()
+                writer.append_order(order_data, extension, smaller_size)
+            elif "https://edge.supplieroasis.com/dashboard/" in order:
+                print(Fore.LIGHTYELLOW_EX + "----- Новый заказ Overstock -----" + Back.WHITE)
+                overstock_parser = OverstockParser(order)
+                order_data = overstock_parser.parse_order()
+                extension = overstock_parser.get_extension()
+                smaller_size = overstock_parser.get_smaller_size()
                 writer = GSheetWriter()
                 writer.append_order(order_data, extension, smaller_size)
 
