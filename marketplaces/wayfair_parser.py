@@ -151,8 +151,8 @@ class WayfairParser:
                     6].text.strip()
             if postal_service == "Order Not Processed On Time":
                 postal_service = \
-                self.soup.find_all("strong", attrs={"data-tag-default": "order-details_orderDetails_Text"})[
-                    8].text.strip()
+                    self.soup.find_all("strong", attrs={"data-tag-default": "order-details_orderDetails_Text"})[
+                        8].text.strip()
             print(Fore.GREEN + f'- Служба доставки: {Fore.MAGENTA}{postal_service}{Back.WHITE}' + Back.WHITE)
             return postal_service
         except (AttributeError, IndexError):
@@ -338,11 +338,13 @@ class WayfairParser:
         """Извлечение цвета из part number"""
         try:
             color_str = self.sku.replace(")", " ").replace("(", " ").split()
-            color = color_str[2].strip()
-            if len(color) < 3:
-                color = " ".join(color_str[-2:]).title()
-            return color.title().strip()
-        except IndexError:
+            color_parts = color_str[2:]
+            if len(color_parts) > 1 and color_parts[1].istitle():
+                color = " ".join(color_parts[:2])
+            else:
+                color = color_parts[0]
+            return color.strip().title()
+        except (IndexError, AttributeError):
             return None
 
     def __get_size(self) -> str | None:
