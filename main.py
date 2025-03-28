@@ -16,6 +16,7 @@ from typing import LiteralString
 from colorama import Fore, init, Back
 
 from marketplaces.amazon_parser import AmazonParser
+from marketplaces.ebay_parser import EbayParser
 from marketplaces.etsy_parser import EtsyParser
 from google_api.gsheet_writer import GSheetWriter
 from marketplaces.overstock_parser import OverstockParser
@@ -26,7 +27,7 @@ init(autoreset=True)
 
 def main() -> None:
     """Основная функция, которая запускает программу"""
-    print(Fore.CYAN + "---Orders Parser v4.0 by Daniel K---" + Back.WHITE)
+    print(Fore.CYAN + "---Orders Parser v5.0 by Daniel K---" + Back.WHITE)
 
     def get_executable_dir() -> str | LiteralString:
         """ Возвращает путь к директории, где находится исполняемый файл или скрипт """
@@ -51,7 +52,7 @@ def main() -> None:
 
     for order in orders:
         if order.strip():
-            if "etsy.com" in order or "transaction_id" in order:
+            if "etsy.com" in order in order:
                 print(Fore.GREEN + "----- Новый заказ Etsy -----" + Back.WHITE)
                 etsy_parser = EtsyParser(order)
                 order_data = etsy_parser.parse_order()
@@ -81,6 +82,14 @@ def main() -> None:
                 order_data = overstock_parser.parse_order()
                 extension = overstock_parser.get_extension()
                 smaller_size = overstock_parser.get_smaller_size()
+                writer = GSheetWriter()
+                writer.append_order(order_data, extension, smaller_size)
+            elif "https://www.ebay.com" in order:
+                print(Fore.BLUE + "----- Новый заказ Ebay -----" + Back.WHITE)
+                ebay_parser = EbayParser(order)
+                order_data = ebay_parser.parse_order()
+                extension = ebay_parser.get_extension()
+                smaller_size = ebay_parser.get_smaller_size()
                 writer = GSheetWriter()
                 writer.append_order(order_data, extension, smaller_size)
 
