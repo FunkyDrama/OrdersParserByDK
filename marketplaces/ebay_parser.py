@@ -30,7 +30,6 @@ class EbayParser:
         tracking_link = self.__get_tracking_link(postal_service, tracking_number)
         shipping_type = self.__get_shipping_type()
         ship_by_date = self.__ship_by_date()
-        customization = self.__get_customization()
 
         files = self.__search_link_to_file()
         if not files:
@@ -49,6 +48,7 @@ class EbayParser:
             listing_link = self.__get_listing_link(item)
             self.sku = self.__get_sku(item, listing_title)
             quantity = self.__get_quantity(item)
+            customization = self.__get_customization(item)
 
             if file_index < len(files) and files[file_index]['name'] != 'File Not Found':
                 file_link = files[file_index]['link']
@@ -412,15 +412,31 @@ class EbayParser:
             print(Fore.RED + "||| Не смог получить количество |||" + Back.WHITE)
             return "!ERROR!"
 
-    def __get_customization(self) -> str | None:
+    def __get_customization(self, item) -> str | None:
         """Извлечение кастомизации из заказа"""
         try:
-            customization = self.soup.find("div", class_="note buyer").find("div", class_="note-content").text.strip()
+            customization_list = []
+
+            size_block = item.find("div", class_="lineItemCardInfo__aspects spaceTop")
+            if size_block:
+                size_elements = size_block.find_all("span", class_="sh-bold")
+                if len(size_elements) > 1:
+                    size_customization = f'Size: {size_elements[1].text.strip()}'
+                    customization_list.append(size_customization)
+
+            customization_block = self.soup.find("div", class_="note buyer")
+            if customization_block:
+                note_content = customization_block.find("div", class_="note-content")
+                if note_content:
+                    customization_text = note_content.text.strip()
+                    customization_list.append(customization_text)
+
+            customization = "\n".join(customization_list) if customization_list else None
 
             print(Fore.GREEN + f'- Кастомизация:\n{Fore.MAGENTA}{customization}{Back.WHITE}' + Back.WHITE)
             return customization
-        except AttributeError:
-            print(Fore.YELLOW + "||| Не смог получить кастомизацию, возможно, она не указана |||" + Back.WHITE)
+        except Exception as e:
+            print(Fore.YELLOW + f"||| Ошибка при получении кастомизации: {e} |||" + Back.WHITE)
             return None
 
     def get_extension(self) -> str:

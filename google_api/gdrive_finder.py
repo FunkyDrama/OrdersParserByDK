@@ -70,7 +70,7 @@ class GoogleDriveFinder:
 
         # Ищем файл шиплейбла
         for label in files_list:
-            if shipping_label_name == label:
+            if shipping_label_name == label.strip():
                 file_found = True
                 try:
                     file_metadata = {'name': label}
