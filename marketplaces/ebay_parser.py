@@ -385,7 +385,7 @@ class EbayParser:
         try:
             item_block = item.find("div", class_="data-items").find_all("div", class_="info-item")
             for el in item_block:
-                if "MPN" in el.text.strip():
+                if "MPN" in el.text.strip() or "Manufacturer Part Number" in el.text.strip():
                     sku = el.find("dd", class_="info-value").text.strip()
                     print(Fore.GREEN + f'- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}' + Back.WHITE)
                     return sku
