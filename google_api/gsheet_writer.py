@@ -19,7 +19,7 @@ class GSheetWriter:
         self.gspread_creds = service_account.Credentials.from_service_account_file(resource_path(
             'config/token.json'),
             scopes=self.gspread_scope)
-        self.client = gspread.service_account('config/token.json')
+        self.client = gspread.service_account(resource_path('config/token.json'))
         self.spreadsheet = self.client.open_by_key(settings.TABLE_ID)
 
     def __sort_by_sheets(self, extension: str, smaller_size: float | str) -> Worksheet:
