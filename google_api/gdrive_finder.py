@@ -96,6 +96,7 @@ class GoogleDriveFinder:
 
                     link = file.get('webViewLink')
                     if link:
+                        del media
                         # Используем полный путь при удалении
                         os.remove(file_path)
                     return link
