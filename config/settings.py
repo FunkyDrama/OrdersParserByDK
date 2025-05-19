@@ -5,8 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def get_config_path() -> str:
-    base_dir = sys._MEIPASS if getattr(sys, 'frozen', False) else os.getcwd()
-    return os.path.join(base_dir, 'config', '.env')
+    base_dir = sys._MEIPASS if getattr(sys, "frozen", False) else os.getcwd()
+    return os.path.join(base_dir, "config", ".env")
 
 
 class Settings(BaseSettings):

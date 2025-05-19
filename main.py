@@ -27,11 +27,11 @@ init(autoreset=True)
 
 def main() -> None:
     """Основная функция, которая запускает программу"""
-    print(Fore.CYAN + "---Orders Parser v5.3 by Daniel K---" + Back.WHITE)
+    print(Fore.CYAN + "---Orders Parser v5.5 by Daniel K---" + Back.WHITE)
 
     def get_executable_dir() -> str | LiteralString:
-        """ Возвращает путь к директории, где находится исполняемый файл или скрипт """
-        if getattr(sys, 'frozen', False):
+        """Возвращает путь к директории, где находится исполняемый файл или скрипт"""
+        if getattr(sys, "frozen", False):
             # Если программа запущена как упакованный exe файл
             return os.path.dirname(sys.executable)
         else:
@@ -39,7 +39,7 @@ def main() -> None:
             return os.path.dirname(os.path.abspath(__file__))
 
     # Путь к orders.txt в той же директории, что и exe
-    orders_path = os.path.join(get_executable_dir(), 'orders.txt')
+    orders_path = os.path.join(get_executable_dir(), "orders.txt")
 
     try:
         with open(orders_path, "r", encoding="utf-8") as f:
@@ -69,7 +69,11 @@ def main() -> None:
                 writer = GSheetWriter()
                 writer.append_order(order_data, extension, smaller_size)
             elif "https://partners.wayfair.com/v/landing/index" in order:
-                print(Fore.LIGHTMAGENTA_EX + "----- Новый заказ Wayfair -----" + Back.WHITE)
+                print(
+                    Fore.LIGHTMAGENTA_EX
+                    + "----- Новый заказ Wayfair -----"
+                    + Back.WHITE
+                )
                 wayfair_parser = WayfairParser(order)
                 order_data = wayfair_parser.parse_order()
                 extension = wayfair_parser.get_extension()
@@ -77,7 +81,11 @@ def main() -> None:
                 writer = GSheetWriter()
                 writer.append_order(order_data, extension, smaller_size)
             elif "https://edge.supplieroasis.com/dashboard/" in order:
-                print(Fore.LIGHTYELLOW_EX + "----- Новый заказ Overstock -----" + Back.WHITE)
+                print(
+                    Fore.LIGHTYELLOW_EX
+                    + "----- Новый заказ Overstock -----"
+                    + Back.WHITE
+                )
                 overstock_parser = OverstockParser(order)
                 order_data = overstock_parser.parse_order()
                 extension = overstock_parser.get_extension()
@@ -93,7 +101,11 @@ def main() -> None:
                 writer = GSheetWriter()
                 writer.append_order(order_data, extension, smaller_size)
 
-    print(Fore.CYAN + "<-- Все данные успешно добавлены. Проверьте внимательно данные в таблице! -->" + Back.WHITE)
+    print(
+        Fore.CYAN
+        + "<-- Все данные успешно добавлены. Проверьте внимательно данные в таблице! -->"
+        + Back.WHITE
+    )
     input(Fore.CYAN + "Нажмите Enter, чтобы выйти из программы..." + Back.WHITE)
 
 

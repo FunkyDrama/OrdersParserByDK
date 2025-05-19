@@ -397,8 +397,8 @@ class AmazonParser:
         try:
             if files and isinstance(files, list):
                 for file in files:
-                    if file['name'] != 'File Not Found':
-                        size_from_name = file['name'].split(" ")[0]
+                    if file["name"] != "File Not Found":
+                        size_from_name = file["name"].split(" ")[0]
                         if "," in size_from_name:
                             size_from_name = size_from_name.replace(",", ".")
                         size = size_from_name.split("x")
@@ -406,8 +406,16 @@ class AmazonParser:
                         height = float(size[1].strip())
                         smaller_size = min(width, height)
                         return float(smaller_size)
-            print(Fore.RED + "||| Не смог получить меньший размер для сортировки |||" + Back.WHITE)
+            print(
+                Fore.RED
+                + "||| Не смог получить меньший размер для сортировки |||"
+                + Back.WHITE
+            )
             return "!ERROR!"
         except (ValueError, AttributeError):
-            print(Fore.RED + "||| Не смог получить меньший размер для сортировки |||" + Back.WHITE)
+            print(
+                Fore.RED
+                + "||| Не смог получить меньший размер для сортировки |||"
+                + Back.WHITE
+            )
             return "!ERROR!"

@@ -33,14 +33,19 @@ class EbayParser:
 
         files = self.__search_link_to_file()
         if not files:
-            files = [{'link': 'File Not Found', 'name': 'File Not Found'}]
+            files = [{"link": "File Not Found", "name": "File Not Found"}]
         if shipping_label_link == "File Not Found":
             file_result = self.finder.search_file_by_name(
-                query=f"name contains '{self.order_id}' and name contains '.pdf'")
-            shipping_label_link = file_result[0]['link'] if file_result else 'File Not Found'
+                query=f"name contains '{self.order_id}' and name contains '.pdf'"
+            )
+            shipping_label_link = (
+                file_result[0]["link"] if file_result else "File Not Found"
+            )
 
         order_items = []
-        items = self.soup.find('div', class_="item-info").find_all('div', class_="lineItemCardInfo__summary")
+        items = self.soup.find("div", class_="item-info").find_all(
+            "div", class_="lineItemCardInfo__summary"
+        )
 
         file_index = 0
         for item in items:
@@ -50,36 +55,43 @@ class EbayParser:
             quantity = self.__get_quantity(item)
             customization = self.__get_customization(item)
 
-            if file_index < len(files) and files[file_index]['name'] != 'File Not Found':
-                file_link = files[file_index]['link']
+            if (
+                file_index < len(files)
+                and files[file_index]["name"] != "File Not Found"
+            ):
+                file_link = files[file_index]["link"]
                 file_index += 1
             else:
                 file_link = "File Not Found"
 
             order_data = {
-                'Status': None,
-                'Additional Info': shipping_type if not (shipping_type.startswith("Standard")) else None,
-                'Date': date,
-                'Store': store_title,
-                'Channel': 'Ebay',
-                'ASIN/SKU': self.sku,
-                'Listing Link': listing_link,
-                'Order ID': self.order_id,
-                'Title': listing_title,
-                'Address/Ship to': address,
-                'Quantity': quantity,
-                'Customization info': customization,
-                'File Link': file_link,
-                'Shipping label link': shipping_label_link,
-                'Track ID': tracking_number,
-                'Ship By': ship_by_date,
-                'Postal Service': postal_service,
-                'Shipping speed': shipping_type,
-                'Track package': tracking_link,
-                'Items total': items_total,
-                'Shipping total': shipping_total,
-                'Shipping price': shipping_price,
-                'Total': total
+                "Status": None,
+                "Additional Info": (
+                    shipping_type
+                    if not (shipping_type.startswith("Standard"))
+                    else None
+                ),
+                "Date": date,
+                "Store": store_title,
+                "Channel": "Ebay",
+                "ASIN/SKU": self.sku,
+                "Listing Link": listing_link,
+                "Order ID": self.order_id,
+                "Title": listing_title,
+                "Address/Ship to": address,
+                "Quantity": quantity,
+                "Customization info": customization,
+                "File Link": file_link,
+                "Shipping label link": shipping_label_link,
+                "Track ID": tracking_number,
+                "Ship By": ship_by_date,
+                "Postal Service": postal_service,
+                "Shipping speed": shipping_type,
+                "Track package": tracking_link,
+                "Items total": items_total,
+                "Shipping total": shipping_total,
+                "Shipping price": shipping_price,
+                "Total": total,
             }
             order_items.append(order_data)
 
@@ -89,14 +101,26 @@ class EbayParser:
     def __get_parse_date(self) -> str:
         """Метод получения сегодняшней даты"""
         self.today = datetime.date.today().strftime("%d.%m.%Y")
-        print(Fore.GREEN + f'- Дата обработки заказа: {Fore.MAGENTA}{self.today}{Back.WHITE}' + Back.WHITE)
+        print(
+            Fore.GREEN
+            + f"- Дата обработки заказа: {Fore.MAGENTA}{self.today}{Back.WHITE}"
+            + Back.WHITE
+        )
         return self.today
 
     def __get_order_id(self) -> str:
         """Извлечение номера заказа"""
         try:
-            order_id = self.soup.find("div", class_="order-info").find("dd", class_="info-value").text.strip()
-            print(Fore.GREEN + f'- Номер заказа: {Fore.MAGENTA}{order_id}{Back.WHITE}' + Back.WHITE)
+            order_id = (
+                self.soup.find("div", class_="order-info")
+                .find("dd", class_="info-value")
+                .text.strip()
+            )
+            print(
+                Fore.GREEN
+                + f"- Номер заказа: {Fore.MAGENTA}{order_id}{Back.WHITE}"
+                + Back.WHITE
+            )
             return order_id
         except AttributeError:
             print(Fore.RED + "||| Не смог получить номер заказа |||" + Back.WHITE)
@@ -106,7 +130,11 @@ class EbayParser:
         """Извлечение названия магазина"""
         try:
             store_title = "stickalz"
-            print(Fore.GREEN + f'- Название магазина: {Fore.MAGENTA}{store_title}{Back.WHITE}' + Back.WHITE)
+            print(
+                Fore.GREEN
+                + f"- Название магазина: {Fore.MAGENTA}{store_title}{Back.WHITE}"
+                + Back.WHITE
+            )
             return store_title
         except AttributeError:
             print(Fore.RED + "||| Не смог получить название магазина |||" + Back.WHITE)
@@ -116,12 +144,14 @@ class EbayParser:
         """Универсальное извлечение и форматирование адреса клиента в несколько строк"""
         try:
             # Найти div с адресом
-            address_div = self.soup.find("div", class_="shipping-address").find_all("button",
-                                                                                    class_="tooltip__host clickable")
+            address_div = self.soup.find("div", class_="shipping-address").find_all(
+                "button", class_="tooltip__host clickable"
+            )
 
             # Безопасно попытаться найти номер телефона
-            phone_number_tag = self.soup.find("div", class_="phone ship-itm").find("button",
-                                                                                   class_="tooltip__host clickable")
+            phone_number_tag = self.soup.find("div", class_="phone ship-itm").find(
+                "button", class_="tooltip__host clickable"
+            )
             phone_number = phone_number_tag.text.strip() if phone_number_tag else None
 
             try:
@@ -129,36 +159,46 @@ class EbayParser:
 
                 # Проходим по элементам внутри div, обрабатываем <span> и текстовые узлы
                 for part in address_div:
-                    if isinstance(part, str) and part.strip() == '':
+                    if isinstance(part, str) and part.strip() == "":
                         continue
 
-                    text = part.get_text(strip=True).replace(u'\xa0', ' ')
+                    text = part.get_text(strip=True).replace("\xa0", " ")
                     if text:
                         address_parts.append(text)
 
                 # Форматирование адреса в зависимости от количества частей
                 if len(address_parts) == 4:
-                    full_address = f'{address_parts[0]}\n{address_parts[1]} {address_parts[2]} {address_parts[3]}'
+                    full_address = f"{address_parts[0]}\n{address_parts[1]} {address_parts[2]} {address_parts[3]}"
                 elif len(address_parts) == 5:
-                    street_address = '\n'.join(address_parts[:-2])
-                    city_state_zip = f'{address_parts[-2]} {address_parts[-1]}'
-                    full_address = f'{street_address} {city_state_zip}'
+                    street_address = "\n".join(address_parts[:-2])
+                    city_state_zip = f"{address_parts[-2]} {address_parts[-1]}"
+                    full_address = f"{street_address} {city_state_zip}"
                 elif len(address_parts) > 5:
-                    street_address = '\n'.join(address_parts[:-3])
-                    city_state_zip = f'{address_parts[-3]} {address_parts[-2]}\n{address_parts[-1]}'
-                    full_address = f'{street_address} {city_state_zip}'
+                    street_address = "\n".join(address_parts[:-3])
+                    city_state_zip = (
+                        f"{address_parts[-3]} {address_parts[-2]}\n{address_parts[-1]}"
+                    )
+                    full_address = f"{street_address} {city_state_zip}"
                 else:
-                    full_address = '\n'.join(address_parts)
+                    full_address = "\n".join(address_parts)
 
                 # Если номер телефона найден, добавляем его в адрес
                 if phone_number:
-                    full_address += f'\nPhone: {phone_number}'
+                    full_address += f"\nPhone: {phone_number}"
 
-                print(Fore.GREEN + f'- Адрес клиента:\n{Fore.MAGENTA}{full_address}' + Fore.RESET)
+                print(
+                    Fore.GREEN
+                    + f"- Адрес клиента:\n{Fore.MAGENTA}{full_address}"
+                    + Fore.RESET
+                )
                 return full_address
 
             except IndexError:
-                print(Fore.RED + "||| Адрес слишком длинный/короткий, не удалось обработать |||" + Fore.RESET)
+                print(
+                    Fore.RED
+                    + "||| Адрес слишком длинный/короткий, не удалось обработать |||"
+                    + Fore.RESET
+                )
                 return "!ERROR!"
 
         except AttributeError:
@@ -169,41 +209,64 @@ class EbayParser:
         """Получение общей стоимости товара"""
         try:
             items_total = (
-                self.soup.find("div", class_="earnings").
-                find("dd", class_="amount").find("span", class_="sh-bold").text.strip())
+                self.soup.find("div", class_="earnings")
+                .find("dd", class_="amount")
+                .find("span", class_="sh-bold")
+                .text.strip()
+            )
             if items_total.startswith("CA"):
                 items_total = items_total.replace("CA", "")
             items_total = float(items_total.strip("$"))
-            print(Fore.GREEN + f'- Общая сумма за товары: {Fore.MAGENTA}{items_total}{Back.WHITE}' + Back.WHITE)
+            print(
+                Fore.GREEN
+                + f"- Общая сумма за товары: {Fore.MAGENTA}{items_total}{Back.WHITE}"
+                + Back.WHITE
+            )
             return items_total
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить общую сумму за товары |||" + Back.WHITE)
+            print(
+                Fore.RED + "||| Не смог получить общую сумму за товары |||" + Back.WHITE
+            )
             return 0
 
     def __get_shipping_total_value(self) -> float | str:
         """Получение стоимости, которую заплатил продавец за шиплейбл"""
         try:
-            shipping_values = (self.soup.find("div", class_="earnings").
-                               find_all("div", class_="level-2"))[-1]
+            shipping_values = (
+                self.soup.find("div", class_="earnings").find_all(
+                    "div", class_="level-2"
+                )
+            )[-1]
 
             total_shipping = 0
             if "Shipping label" in shipping_values.text.strip():
-                total_shipping = shipping_values.find("span", class_="sh-secondary").text.strip()
+                total_shipping = shipping_values.find(
+                    "span", class_="sh-secondary"
+                ).text.strip()
             total_shipping = total_shipping.replace("-", "").replace("$", "")
             if total_shipping.startswith("CA"):
                 total_shipping = total_shipping.replace("CA", "")
 
             print(
-                Fore.GREEN + f'- Сумма, уплаченная нами за доставку: {Fore.MAGENTA}{total_shipping}{Back.WHITE}' + Back.WHITE)
+                Fore.GREEN
+                + f"- Сумма, уплаченная нами за доставку: {Fore.MAGENTA}{total_shipping}{Back.WHITE}"
+                + Back.WHITE
+            )
             return float(total_shipping)
         except (AttributeError, ValueError):
-            print(Fore.RED + "||| Не смог получить сумму, уплаченную нами за доставку |||" + Back.WHITE)
+            print(
+                Fore.RED
+                + "||| Не смог получить сумму, уплаченную нами за доставку |||"
+                + Back.WHITE
+            )
             return 0
 
     def __get_shipping_price(self) -> float | int:
         """Цена доставки, которую заплатил клиент"""
         try:
-            order_total = self.soup.find("div", class_="buyer-paid").find_all("div", class_="level-2")[1]
+            order_total = self.soup.find("div", class_="buyer-paid").find_all(
+                "div", class_="level-2"
+            )[1]
             if "Shipping" in order_total.text:
                 shipping_total = order_total.find("div", class_="value").text.strip()
                 shipping_total = shipping_total.replace("-", "")
@@ -213,22 +276,36 @@ class EbayParser:
             else:
                 shipping_price_value = 0
             print(
-                Fore.GREEN + f'- Установленная цена за доставку: {Fore.MAGENTA}{shipping_price_value}{Back.WHITE}' + Back.WHITE)
+                Fore.GREEN
+                + f"- Установленная цена за доставку: {Fore.MAGENTA}{shipping_price_value}{Back.WHITE}"
+                + Back.WHITE
+            )
             return shipping_price_value
         except (AttributeError, IndexError):
-            print(Fore.RED + "||| Установленная цена за доставку не найдена |||" + Back.WHITE)
+            print(
+                Fore.RED
+                + "||| Установленная цена за доставку не найдена |||"
+                + Back.WHITE
+            )
             return 0
 
     def __get_total(self) -> float | int:
         """Выручка за заказ"""
         try:
             order_earnings = (
-                self.soup.find("div", class_="earnings").find("div", class_="total").find("div", class_="value").
-                find("span", class_="sh-bold").text.strip())
+                self.soup.find("div", class_="earnings")
+                .find("div", class_="total")
+                .find("div", class_="value")
+                .find("span", class_="sh-bold")
+                .text.strip()
+            )
             order_earnings = float(order_earnings.replace("CA", "").replace("$", ""))
 
             print(
-                Fore.GREEN + f'- Тотал: {Fore.MAGENTA}{order_earnings}{Back.WHITE}' + Back.WHITE)
+                Fore.GREEN
+                + f"- Тотал: {Fore.MAGENTA}{order_earnings}{Back.WHITE}"
+                + Back.WHITE
+            )
             return order_earnings
         except (AttributeError, IndexError):
             print(Fore.RED + "||| Тотал не найден |||" + Back.WHITE)
@@ -237,20 +314,30 @@ class EbayParser:
     def __get_tracking_number(self) -> str:
         """Извлечение трек-номера"""
         try:
-            tracking_button = self.soup.find("div", class_="shipping-info").find("div", class_="tracking-info").find(
-                "button", class_="fake-link")
+            tracking_button = (
+                self.soup.find("div", class_="shipping-info")
+                .find("div", class_="tracking-info")
+                .find("button", class_="fake-link")
+            )
             if tracking_button:
                 tracking_number = tracking_button.text.strip()
             else:
-                tracking_div = self.soup.find("div", class_="shipping-info").find("div", class_="tracking-info").find(
-                    "div", class_="value")
+                tracking_div = (
+                    self.soup.find("div", class_="shipping-info")
+                    .find("div", class_="tracking-info")
+                    .find("div", class_="value")
+                )
                 if tracking_div:
                     tracking_number = tracking_div.text.strip()
                 else:
                     tracking_number = None
 
             if tracking_number:
-                print(Fore.GREEN + f'- Трек-номер: {Fore.MAGENTA}{tracking_number}{Back.WHITE}' + Back.WHITE)
+                print(
+                    Fore.GREEN
+                    + f"- Трек-номер: {Fore.MAGENTA}{tracking_number}{Back.WHITE}"
+                    + Back.WHITE
+                )
                 return tracking_number
             else:
                 print(Fore.RED + "||| Не смог получить трек-номер |||" + Back.WHITE)
@@ -266,19 +353,33 @@ class EbayParser:
             postal_service = None
             if tracking_number.startswith("1Z"):
                 postal_service = "UPS"
-            elif tracking_number.startswith("92") or tracking_number.startswith("94") or tracking_number.startswith(
-                    "93"):
+            elif (
+                tracking_number.startswith("92")
+                or tracking_number.startswith("94")
+                or tracking_number.startswith("93")
+            ):
                 postal_service = "USPS"
             elif tracking_number.startswith("2") or tracking_number.startswith("6"):
                 postal_service = "FedEx"
-            elif tracking_number.startswith("15") or tracking_number.startswith("99") or tracking_number.startswith(
-                    "74"):
+            elif (
+                tracking_number.startswith("15")
+                or tracking_number.startswith("99")
+                or tracking_number.startswith("74")
+            ):
                 postal_service = "DHL"
 
-            print(Fore.GREEN + f'- Название почтовой службы: {Fore.MAGENTA}{postal_service}{Back.WHITE}' + Back.WHITE)
+            print(
+                Fore.GREEN
+                + f"- Название почтовой службы: {Fore.MAGENTA}{postal_service}{Back.WHITE}"
+                + Back.WHITE
+            )
             return postal_service
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить название почтовой службы |||" + Back.WHITE)
+            print(
+                Fore.RED
+                + "||| Не смог получить название почтовой службы |||"
+                + Back.WHITE
+            )
             return "!ERROR!"
 
     @staticmethod
@@ -287,39 +388,69 @@ class EbayParser:
         try:
             if postal_service == "USPS":
                 tracking_link = f"https://tools.usps.com/go/TrackConfirmAction_input?qtc_tLabels1={tracking_number}"
-                print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
+                print(
+                    Fore.GREEN
+                    + f"- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}"
+                    + Back.WHITE
+                )
                 return tracking_link
             elif postal_service == "UPS" or postal_service == "UPS®":
                 tracking_link = f"https://www.ups.com/track?TypeOfInquiryNumber=T&InquiryNumber1={tracking_number}&loc=en_US&requester=ST/trackdetails"
-                print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
+                print(
+                    Fore.GREEN
+                    + f"- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}"
+                    + Back.WHITE
+                )
                 return tracking_link
             elif postal_service == "FedEx":
                 tracking_link = f"https://www.fedex.com/apps/fedextrack/?tracknumbers={tracking_number}"
-                print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
+                print(
+                    Fore.GREEN
+                    + f"- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}"
+                    + Back.WHITE
+                )
                 return tracking_link
             elif postal_service == "DHL":
                 tracking_link = f"https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id={tracking_number}"
-                print(Fore.GREEN + f'- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}' + Back.WHITE)
+                print(
+                    Fore.GREEN
+                    + f"- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}"
+                    + Back.WHITE
+                )
                 return tracking_link
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить ссылку на отслеживание |||" + Back.WHITE)
+            print(
+                Fore.RED
+                + "||| Не смог получить ссылку на отслеживание |||"
+                + Back.WHITE
+            )
             return "!ERROR!"
 
     def __get_shipping_type(self) -> str:
         """Извлечение типа доставки"""
         try:
             shipping_type = None
-            shipping_info_block = (self.soup.find("div", class_="shipping-info").
-                                   find("div", class_="ship-itm").find("dd", class_="info-value").text.strip())
+            shipping_info_block = (
+                self.soup.find("div", class_="shipping-info")
+                .find("div", class_="ship-itm")
+                .find("dd", class_="info-value")
+                .text.strip()
+            )
             if "Priority" in shipping_info_block:
                 shipping_type = "Expedited"
-            elif "2nd Day" in shipping_info_block or "Second Day" in shipping_info_block:
+            elif (
+                "2nd Day" in shipping_info_block or "Second Day" in shipping_info_block
+            ):
                 shipping_type = "Second Day"
             elif "Next Day" in shipping_info_block or "Express" in shipping_info_block:
                 shipping_type = "Next Day"
             else:
                 shipping_type = "Standard"
-            print(Fore.GREEN + f'- Тип доставки: {Fore.MAGENTA}{shipping_type}{Back.WHITE}' + Back.WHITE)
+            print(
+                Fore.GREEN
+                + f"- Тип доставки: {Fore.MAGENTA}{shipping_type}{Back.WHITE}"
+                + Back.WHITE
+            )
             return shipping_type
         except AttributeError:
             print(Fore.RED + "||| Тип доставки не найден |||" + Back.WHITE)
@@ -334,29 +465,42 @@ class EbayParser:
             #     formatted_date = datetime.datetime.strptime(date_div, "%a, %b %d, %Y").strftime("%d.%m.%Y")
             # else:
             formatted_date = self.__get_parse_date(self)
-            print(Fore.GREEN + f'- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}' + Back.WHITE)
+            print(
+                Fore.GREEN
+                + f"- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}"
+                + Back.WHITE
+            )
             return formatted_date
         except AttributeError:
             formatted_date = self.__get_parse_date(self)
-            print(Fore.GREEN + f'- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}' + Back.WHITE)
+            print(
+                Fore.GREEN
+                + f"- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}"
+                + Back.WHITE
+            )
             return formatted_date
 
     def __search_link_to_file(self) -> list[dict[str, Any]] | None:
         """Метод поиска ссылки на файл по номеру заказа или SKU"""
         file_link = self.finder.search_file_by_name(
-            query=f"name contains '{self.order_id}' and not name contains '.pdf'")
+            query=f"name contains '{self.order_id}' and not name contains '.pdf'"
+        )
         if file_link is None:
             file_link = self.finder.search_file_by_name(
-                query=f"name contains '{self.sku}' and not name contains '.pdf'")
+                query=f"name contains '{self.sku}' and not name contains '.pdf'"
+            )
         return file_link
 
     @staticmethod
     def __get_listing_title(item: Any) -> str:
         """Извлечение названия товара"""
         try:
-            listing_title = (item.
-                             find("span", class_="PSEUDOLINK").text.strip())
-            print(Fore.GREEN + f"- Название товара: {Fore.MAGENTA}{listing_title}{Back.WHITE}" + Back.WHITE)
+            listing_title = item.find("span", class_="PSEUDOLINK").text.strip()
+            print(
+                Fore.GREEN
+                + f"- Название товара: {Fore.MAGENTA}{listing_title}{Back.WHITE}"
+                + Back.WHITE
+            )
             return listing_title
         except AttributeError:
             print(Fore.RED + "||| Не смог получить название листинга |||" + Back.WHITE)
@@ -370,24 +514,41 @@ class EbayParser:
             link = item.find("div", class_="details").find("a", href=True)
             if link:
                 listing_link = link.get("href").strip()
-                print(Fore.GREEN + f'- Ссылка на листинг: {Fore.MAGENTA}{listing_link}{Back.WHITE}' + Back.WHITE)
+                print(
+                    Fore.GREEN
+                    + f"- Ссылка на листинг: {Fore.MAGENTA}{listing_link}{Back.WHITE}"
+                    + Back.WHITE
+                )
                 return listing_link
             else:
                 print(Fore.RED + "||| Не смог найти ссылку на листинг |||" + Back.WHITE)
                 return "!ERROR!"
         except Exception as e:
-            print(Fore.RED + f"||| Ошибка при поиске ссылки на листинг: {str(e)} |||" + Back.WHITE)
+            print(
+                Fore.RED
+                + f"||| Ошибка при поиске ссылки на листинг: {str(e)} |||"
+                + Back.WHITE
+            )
             return "!ERROR!"
 
     @staticmethod
     def __get_sku(item: Any, listing_title: str) -> str:
         """Извлечение SKU"""
         try:
-            item_block = item.find("div", class_="data-items").find_all("div", class_="info-item")
+            item_block = item.find("div", class_="data-items").find_all(
+                "div", class_="info-item"
+            )
             for el in item_block:
-                if "MPN" in el.text.strip() or "Manufacturer Part Number" in el.text.strip():
+                if (
+                    "MPN" in el.text.strip()
+                    or "Manufacturer Part Number" in el.text.strip()
+                ):
                     sku = el.find("dd", class_="info-value").text.strip()
-                    print(Fore.GREEN + f'- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}' + Back.WHITE)
+                    print(
+                        Fore.GREEN
+                        + f"- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}"
+                        + Back.WHITE
+                    )
                     return sku
         except AttributeError:
             if "(" in listing_title:
@@ -397,16 +558,32 @@ class EbayParser:
                 sku = listing_title.split(" ")[-1].strip()
                 if len(sku) == 1:
                     sku = listing_title.split(" ")[-2].strip()
-            print(Fore.YELLOW + 'SKU был взять из названия, проверьте после добавления в таблицу!' + Back.WHITE)
-            print(Fore.GREEN + f'- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}' + Back.WHITE)
+            print(
+                Fore.YELLOW
+                + "SKU был взять из названия, проверьте после добавления в таблицу!"
+                + Back.WHITE
+            )
+            print(
+                Fore.GREEN
+                + f"- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}"
+                + Back.WHITE
+            )
             return sku
 
     @staticmethod
     def __get_quantity(item: Any) -> int | str:
         """Извлечение количества конкретного товара"""
         try:
-            quantity = item.find("div", class_="quantity__value").find("span", class_="sh-bold").text.strip()
-            print(Fore.GREEN + f'- Количество: {Fore.MAGENTA}{quantity}{Back.WHITE}' + Back.WHITE)
+            quantity = (
+                item.find("div", class_="quantity__value")
+                .find("span", class_="sh-bold")
+                .text.strip()
+            )
+            print(
+                Fore.GREEN
+                + f"- Количество: {Fore.MAGENTA}{quantity}{Back.WHITE}"
+                + Back.WHITE
+            )
             return int(quantity)
         except AttributeError:
             print(Fore.RED + "||| Не смог получить количество |||" + Back.WHITE)
@@ -421,7 +598,7 @@ class EbayParser:
             if size_block:
                 size_elements = size_block.find_all("span", class_="sh-bold")
                 if len(size_elements) > 1:
-                    size_customization = f'Size: {size_elements[1].text.strip()}'
+                    size_customization = f"Size: {size_elements[1].text.strip()}"
                     customization_list.append(size_customization)
 
             customization_block = self.soup.find("div", class_="note buyer")
@@ -431,12 +608,22 @@ class EbayParser:
                     customization_text = note_content.text.strip()
                     customization_list.append(customization_text)
 
-            customization = "\n".join(customization_list) if customization_list else None
+            customization = (
+                "\n".join(customization_list) if customization_list else None
+            )
 
-            print(Fore.GREEN + f'- Кастомизация:\n{Fore.MAGENTA}{customization}{Back.WHITE}' + Back.WHITE)
+            print(
+                Fore.GREEN
+                + f"- Кастомизация:\n{Fore.MAGENTA}{customization}{Back.WHITE}"
+                + Back.WHITE
+            )
             return customization
         except Exception as e:
-            print(Fore.YELLOW + f"||| Ошибка при получении кастомизации: {e} |||" + Back.WHITE)
+            print(
+                Fore.YELLOW
+                + f"||| Ошибка при получении кастомизации: {e} |||"
+                + Back.WHITE
+            )
             return None
 
     def get_extension(self) -> str:
@@ -446,12 +633,14 @@ class EbayParser:
         # Проверка, что возвращен список файлов
         if files and isinstance(files, list):
             for file in files:
-                if file['name'] != 'File Not Found':
-                    extension = file['name'].split(".")[-1]  # Получаем расширение первого подходящего файла
+                if file["name"] != "File Not Found":
+                    extension = file["name"].split(".")[
+                        -1
+                    ]  # Получаем расширение первого подходящего файла
                     return extension
-            return 'Unknown'  # Если файлы есть, но не нашли нужный файл
+            return "Unknown"  # Если файлы есть, но не нашли нужный файл
         else:
-            return 'Unknown'
+            return "Unknown"
 
     def get_smaller_size(self) -> float | str:
         """Получение меньшего значения в размере товара для сортировки"""
@@ -459,8 +648,8 @@ class EbayParser:
         try:
             if files and isinstance(files, list):
                 for file in files:
-                    if file['name'] != 'File Not Found':
-                        size_from_name = file['name'].split(" ")[0]
+                    if file["name"] != "File Not Found":
+                        size_from_name = file["name"].split(" ")[0]
                         if "," in size_from_name:
                             size_from_name = size_from_name.replace(",", ".")
                         size = size_from_name.split("x")
@@ -468,8 +657,16 @@ class EbayParser:
                         height = float(size[1].strip())
                         smaller_size = min(width, height)
                         return float(smaller_size)
-            print(Fore.RED + "||| Не смог получить меньший размер для сортировки |||" + Back.WHITE)
+            print(
+                Fore.RED
+                + "||| Не смог получить меньший размер для сортировки |||"
+                + Back.WHITE
+            )
             return "!ERROR!"
         except (ValueError, AttributeError):
-            print(Fore.RED + "||| Не смог получить меньший размер для сортировки |||" + Back.WHITE)
+            print(
+                Fore.RED
+                + "||| Не смог получить меньший размер для сортировки |||"
+                + Back.WHITE
+            )
             return "!ERROR!"
