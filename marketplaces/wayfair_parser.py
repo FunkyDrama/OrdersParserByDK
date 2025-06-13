@@ -115,7 +115,7 @@ class WayfairParser:
         try:
             order_id = self.soup.find(
                 "h1",
-                class_="b62nt514o mb5j687 mb5j68d mb5j68v",
+                class_="b62nt518y mb5j687 mb5j68d mb5j68v",
                 attrs={"data-hb-id": "Heading"},
             ).text.strip()
             print(
@@ -381,12 +381,12 @@ class WayfairParser:
     def __get_sku(item) -> str:
         """Извлечение SKU"""
         try:
-            sku_div = item.find_all("p", class_="b62nt5bl b62nt514o")
+            sku_div = item.find_all("p", class_="b62nt5bl b62nt518y")
             skus = [
                 sku.text.strip()
                 for sku in sku_div
                 if sku.find_parent(
-                    "div", class_="b62nt511k b62nt5h3 b62nt59r b62nt5173"
+                    "div", class_="b62nt513e b62nt5hp b62nt59r b62nt51bd"
                 )
             ]
             sku = "".join(skus)
@@ -490,7 +490,7 @@ class WayfairParser:
                 for quantity in quantity_div
                 if quantity.find_parent(
                     "td",
-                    class_="b62nt5ib b62nt5l b62nt517n b62nt514w b62nt5101 b62nt518x _9pl4ko0",
+                    class_="b62nt5ix b62nt5l b62nt51bx b62nt5196 b62nt512h b62nt51d7 _9pl4ko0",
                 )
             ]
             quantity = "".join(quantities[2])
