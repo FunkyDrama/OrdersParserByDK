@@ -190,6 +190,10 @@ class WayfairParser:
                     "strong",
                     attrs={"data-tag-default": "order-details_orderDetails_Text"},
                 )[8].text.strip()
+            if postal_service == "US Mail":
+                postal_service = "USPS"
+            if postal_service == "United Parcel Service":
+                postal_service = "UPS"
             print(
                 Fore.GREEN
                 + f"- Служба доставки: {Fore.MAGENTA}{postal_service}{Back.WHITE}"

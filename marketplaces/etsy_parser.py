@@ -38,23 +38,40 @@ class EtsyParser:
                 "div",
                 class_="flag-img flag-img-right text-right vertical-align-top hide-xs hide-sm",
             )
+
             if not block:
-                block = self.soup.find("div", class_="wt-text-title")
-            block_text = block.find(
-                "p", class_="text-body-smaller text-gray-lightest mt-xs-1"
-            ).text.strip()
+                block = self.soup.find("div", class_="mt-xs-6 mb-xs-4")
+
+            if not block:
+                return self.__get_parse_date(self)
+
+            block_text = block.get_text(separator=" ", strip=True)
+
             if "Buyer notification" in block_text:
                 date_match = re.search(r"\b\w{3}\s\d{1,2},\s\d{4}\b", block_text)
                 if date_match:
                     date_str = date_match.group()
                     date_obj = datetime.datetime.strptime(date_str, "%b %d, %Y")
-                    formatted_date = date_obj.strftime("%d.%m.%Y")
+                    formatted = date_obj.strftime("%d.%m.%Y")
                     print(
                         Fore.GREEN
-                        + f"- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}"
-                        + Back.WHITE
+                        + f"- Заказ отправить до: {Fore.MAGENTA}{formatted}{Back.WHITE}"
                     )
-                    return formatted_date
+                    return formatted
+
+            if "Ship by" in block_text:
+
+                date_match = re.search(r"Ship by\s(\w{3}\s\d{1,2},\s\d{4})", block_text)
+                if date_match:
+                    date_str = date_match.group(1)
+                    date_obj = datetime.datetime.strptime(date_str, "%b %d, %Y")
+                    formatted = date_obj.strftime("%d.%m.%Y")
+                    print(
+                        Fore.GREEN
+                        + f"- Заказ отправить до: {Fore.MAGENTA}{formatted}{Back.WHITE}"
+                    )
+                    return formatted
+
             return self.__get_parse_date(self)
         except AttributeError:
             return self.__get_parse_date(self)
@@ -103,14 +120,12 @@ class EtsyParser:
         if not files:
             files = [{"link": "File Not Found", "name": "File Not Found"}]
 
-        # Список для отслеживания назначенных файлов
-        assigned_files = []
-
         order_items = []
         items = self.soup.find_all(
             "tr", class_="col-group pl-xs-0 pt-xs-3 pr-xs-0 pb-xs-3 bb-xs-1"
         )
 
+        file_index = 0
         for index, item in enumerate(items):
             listing_title = self.__get_listing_title(item)
             self.sku = self.__get_sku(item, listing_title)
@@ -121,23 +136,14 @@ class EtsyParser:
                 listing_links[index] if index < len(listing_links) else "File Not Found"
             )
 
-            matched_file_link = "File Not Found"
-
-            # Проход по файлам, чтобы найти подходящий файл по размеру
-            for file_index, file in enumerate(files):
-                # Извлечение чисел из имени файла и сравнение с размером товара
-                file_name = file["name"].split(".")[0]
-                file_size_match = re.findall(r"\d+\.?\d*", file_name.split(" ")[0])
-                item_size_match = re.findall(r"\d+\.?\d*", self.size)
-
-                # Если размеры совпадают и файл еще не был назначен товару
-                if (
-                    sorted(file_size_match) == sorted(item_size_match)
-                    and file_index not in assigned_files
-                ):
-                    matched_file_link = file["link"]
-                    assigned_files.append(file_index)  # Отмечаем файл как назначенный
-                    break
+            if (
+                file_index < len(files)
+                and files[file_index]["name"] != "File Not Found"
+            ):
+                file_link = files[file_index]["link"]
+                file_index += 1
+            else:
+                file_link = "File Not Found"
 
             order_data = {
                 "Status": None,
@@ -169,7 +175,7 @@ class EtsyParser:
                 "Address/Ship to": address,
                 "Quantity": quantity,
                 "Customization info": customization,
-                "File Link": matched_file_link,
+                "File Link": file_link,
                 "Shipping label link": shipping_label_link,
                 "Track ID": tracking_number,
                 "Ship By": ship_by_date,
@@ -326,6 +332,9 @@ class EtsyParser:
                 + Back.WHITE
             )
             sku = listing_title.split(" ")[-1]
+            if sku.isdigit():
+                sku = listing_title.split(" ")[-2:]
+                sku = " ".join(sku)
         print(
             Fore.GREEN + f"- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}" + Back.WHITE
         )

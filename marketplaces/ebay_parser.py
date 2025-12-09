@@ -147,11 +147,8 @@ class EbayParser:
             address_div = self.soup.find("div", class_="shipping-address").find_all(
                 "button", class_="tooltip__host clickable"
             )
-
             # Безопасно попытаться найти номер телефона
-            phone_number_tag = self.soup.find("div", class_="phone ship-itm").find(
-                "button", class_="tooltip__host clickable"
-            )
+            phone_number_tag = self.soup.find("span", id="nid-mu6-3").find("button")
             phone_number = phone_number_tag.text.strip() if phone_number_tag else None
 
             try:
@@ -232,10 +229,8 @@ class EbayParser:
     def __get_shipping_total_value(self) -> float | str:
         """Получение стоимости, которую заплатил продавец за шиплейбл"""
         try:
-            shipping_values = (
-                self.soup.find("div", class_="earnings").find_all(
-                    "div", class_="level-2"
-                )
+            shipping_values = self.soup.find("div", class_="earnings").find_all(
+                "div", class_="data-item"
             )[-1]
 
             total_shipping = 0
@@ -265,7 +260,7 @@ class EbayParser:
         """Цена доставки, которую заплатил клиент"""
         try:
             order_total = self.soup.find("div", class_="buyer-paid").find_all(
-                "div", class_="level-2"
+                "div", class_="data-item"
             )[1]
             if "Shipping" in order_total.text:
                 shipping_total = order_total.find("div", class_="value").text.strip()
@@ -293,10 +288,8 @@ class EbayParser:
         """Выручка за заказ"""
         try:
             order_earnings = (
-                self.soup.find("div", class_="earnings")
-                .find("div", class_="total")
-                .find("div", class_="value")
-                .find("span", class_="sh-bold")
+                self.soup.find_all("dl", class_="total")[-1]
+                .find("dd", class_="amount")
                 .text.strip()
             )
             order_earnings = float(order_earnings.replace("CA", "").replace("$", ""))
@@ -431,8 +424,7 @@ class EbayParser:
         try:
             shipping_type = None
             shipping_info_block = (
-                self.soup.find("div", class_="shipping-info")
-                .find("div", class_="ship-itm")
+                self.soup.find("dl", class_="ship-itm")
                 .find("dd", class_="info-value")
                 .text.strip()
             )

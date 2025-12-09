@@ -1,13 +1,19 @@
+import random
 from typing import List, Dict
-
+import re
 import gspread
 from colorama import Fore, Back
 from google.oauth2 import service_account
 from gspread import Worksheet
 from gspread.utils import ValueInputOption
+from gspread_formatting import Color
 
 from config.settings import settings
 from google_api.gdrive_finder import resource_path
+
+WALLPAPER_PATTERN = re.compile(
+    r"(?i)(peel\s*[-\s]*n?\s*[-\s]*stick|non\s*[-\s]*woven(?:\s*fabric)?)"
+)
 
 
 class GSheetWriter:
@@ -22,15 +28,34 @@ class GSheetWriter:
         self.client = gspread.service_account(resource_path("config/token.json"))
         self.spreadsheet = self.client.open_by_key(settings.TABLE_ID)
 
-    def __sort_by_sheets(self, extension: str, smaller_size: float | str) -> Worksheet:
+    def __sort_by_sheets(
+        self,
+        extension: str,
+        smaller_size: float | str,
+        customization_info: str | None = None,
+    ) -> Worksheet:
         """Сортировка по листам, используя размер и расширение файла"""
+
+        if customization_info and WALLPAPER_PATTERN.search(customization_info):
+            worksheet = self.spreadsheet.worksheet("Wallpaper")
+            print(
+                Fore.GREEN
+                + f"---Распределяем по листу: {worksheet.title}---"
+                + Back.WHITE
+            )
+            return worksheet
+
         if not extension == "Unknown":
             if extension in {"png", "jpg", "jpeg", "eps"}:
                 worksheet = self.spreadsheet.worksheet("Colored")
+                print(
+                    Fore.GREEN
+                    + f"---Размер заказа: {smaller_size}---\n"
+                    + f"---Расширение файла: {extension}---\n"
+                    + f"---Распределяем по листу: {worksheet.title}---"
+                    + Back.WHITE
+                )
                 return worksheet
-            # elif self.extension == "jpg":
-            #     worksheet = self.spreadsheet.worksheet("Posters")
-            #     return worksheet
             elif isinstance(smaller_size, float):
                 if smaller_size <= 22 and not extension in {
                     "png",
@@ -39,6 +64,13 @@ class GSheetWriter:
                     "jpeg",
                 }:
                     worksheet = self.spreadsheet.worksheet("22 roll")
+                    print(
+                        Fore.GREEN
+                        + f"---Размер заказа: {smaller_size}---\n"
+                        + f"---Расширение файла: {extension}---\n"
+                        + f"---Распределяем по листу: {worksheet.title}---"
+                        + Back.WHITE
+                    )
                     return worksheet
                 elif smaller_size > 22 and not extension in {
                     "png",
@@ -47,6 +79,13 @@ class GSheetWriter:
                     "jpeg",
                 }:
                     worksheet = self.spreadsheet.worksheet("46 roll")
+                    print(
+                        Fore.GREEN
+                        + f"---Размер заказа: {smaller_size}---\n"
+                        + f"---Расширение файла: {extension}---\n"
+                        + f"---Распределяем по листу: {worksheet.title}---"
+                        + Back.WHITE
+                    )
                     return worksheet
 
         print(
@@ -62,10 +101,11 @@ class GSheetWriter:
         order_items: List[Dict[str, None | str | int]],
         extension: str,
         smaller_size: float | str,
+        customization_info: str | None = None,
     ) -> None:
         """Добавление данных в таблицу Google Sheets с закрашиванием ячеек, установкой стратегии обрезки текста и объединением ячеек"""
 
-        worksheet = self.__sort_by_sheets(extension, smaller_size)
+        worksheet = self.__sort_by_sheets(extension, smaller_size, customization_info)
         headers = worksheet.row_values(1)  # Получаем заголовки первой строки
 
         # Получить количество строк с данными
@@ -93,8 +133,26 @@ class GSheetWriter:
         ]
         merge_col_indices = [headers.index(col) + 1 for col in columns_to_merge]
 
-        # Цвет для ячеек в случае нескольких товаров
-        multiple_order_cell_color = {"red": 0, "green": 0.6, "blue": 0}
+        # Цвета для ячеек в случае нескольких товаров
+        multiple_order_cell_color = [
+            Color(0.55, 0.80, 1.00),
+            Color(0.55, 1.00, 0.55),
+            Color(1.00, 0.55, 0.55),
+            Color(0.70, 0.55, 1.00),
+            Color(1.00, 0.75, 0.40),
+            Color(0.45, 1.00, 0.80),
+            Color(1.00, 0.55, 0.85),
+            Color(0.55, 0.95, 1.00),
+            Color(0.60, 1.00, 0.40),
+            Color(1.00, 0.60, 0.40),
+        ]
+
+        random_color = random.choice(multiple_order_cell_color)
+        rgb = {
+            "red": random_color.red,
+            "green": random_color.green,
+            "blue": random_color.blue,
+        }
 
         merge_requests = []
 
@@ -134,9 +192,7 @@ class GSheetWriter:
                                         "endColumnIndex": col,
                                     },
                                     "cell": {
-                                        "userEnteredFormat": {
-                                            "backgroundColor": multiple_order_cell_color
-                                        }
+                                        "userEnteredFormat": {"backgroundColor": rgb}
                                     },
                                     "fields": "userEnteredFormat.backgroundColor",
                                 }

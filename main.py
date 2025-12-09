@@ -27,7 +27,7 @@ init(autoreset=True)
 
 def main() -> None:
     """Основная функция, которая запускает программу"""
-    print(Fore.CYAN + "---Orders Parser v5.5.1 by Daniel K---" + Back.WHITE)
+    print(Fore.CYAN + "---Orders Parser v6.0 by Daniel K---" + Back.WHITE)
 
     def get_executable_dir() -> str | LiteralString:
         """Возвращает путь к директории, где находится исполняемый файл или скрипт"""
@@ -52,22 +52,38 @@ def main() -> None:
 
     for order in orders:
         if order.strip():
-            if "etsy.com" in order in order:
+            if "etsy.com" in order:
                 print(Fore.GREEN + "----- Новый заказ Etsy -----" + Back.WHITE)
                 etsy_parser = EtsyParser(order)
                 order_data = etsy_parser.parse_order()
                 extension = etsy_parser.get_extension()
                 smaller_size = etsy_parser.get_smaller_size()
+                customization = next(
+                    (
+                        item["Customization info"]
+                        for item in order_data
+                        if item.get("Customization info")
+                    ),
+                    None,
+                )
                 writer = GSheetWriter()
-                writer.append_order(order_data, extension, smaller_size)
+                writer.append_order(order_data, extension, smaller_size, customization)
             elif "amazon.com" in order or "Order ID" in order:
                 print(Fore.LIGHTBLUE_EX + "----- Новый заказ Amazon -----" + Back.WHITE)
                 amazon_parser = AmazonParser(order)
                 order_data = amazon_parser.parse_order()
                 extension = amazon_parser.get_extension()
                 smaller_size = amazon_parser.get_smaller_size()
+                customization = next(
+                    (
+                        item["Customization info"]
+                        for item in order_data
+                        if item.get("Customization info")
+                    ),
+                    None,
+                )
                 writer = GSheetWriter()
-                writer.append_order(order_data, extension, smaller_size)
+                writer.append_order(order_data, extension, smaller_size, customization)
             elif "https://partners.wayfair.com/v/landing/index" in order:
                 print(
                     Fore.LIGHTMAGENTA_EX
@@ -78,8 +94,16 @@ def main() -> None:
                 order_data = wayfair_parser.parse_order()
                 extension = wayfair_parser.get_extension()
                 smaller_size = wayfair_parser.get_smaller_size()
+                customization = next(
+                    (
+                        item["Customization info"]
+                        for item in order_data
+                        if item.get("Customization info")
+                    ),
+                    None,
+                )
                 writer = GSheetWriter()
-                writer.append_order(order_data, extension, smaller_size)
+                writer.append_order(order_data, extension, smaller_size, customization)
             elif "https://edge.supplieroasis.com/dashboard/" in order:
                 print(
                     Fore.LIGHTYELLOW_EX
@@ -90,16 +114,32 @@ def main() -> None:
                 order_data = overstock_parser.parse_order()
                 extension = overstock_parser.get_extension()
                 smaller_size = overstock_parser.get_smaller_size()
+                customization = next(
+                    (
+                        item["Customization info"]
+                        for item in order_data
+                        if item.get("Customization info")
+                    ),
+                    None,
+                )
                 writer = GSheetWriter()
-                writer.append_order(order_data, extension, smaller_size)
+                writer.append_order(order_data, extension, smaller_size, customization)
             elif "https://www.ebay.com" in order:
                 print(Fore.BLUE + "----- Новый заказ Ebay -----" + Back.WHITE)
                 ebay_parser = EbayParser(order)
                 order_data = ebay_parser.parse_order()
                 extension = ebay_parser.get_extension()
                 smaller_size = ebay_parser.get_smaller_size()
+                customization = next(
+                    (
+                        item["Customization info"]
+                        for item in order_data
+                        if item.get("Customization info")
+                    ),
+                    None,
+                )
                 writer = GSheetWriter()
-                writer.append_order(order_data, extension, smaller_size)
+                writer.append_order(order_data, extension, smaller_size, customization)
 
     print(
         Fore.CYAN
