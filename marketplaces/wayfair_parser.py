@@ -168,7 +168,7 @@ class WayfairParser:
             items_total = self.soup.find_all(
                 "strong", attrs={"data-tag-default": "order-details_orderDetails_Text"}
             )[4].text.strip()
-            items_total = float(items_total.strip("$"))
+            items_total = float(items_total.strip("$").replace(",", ""))
             print(
                 Fore.GREEN
                 + f"- Сумма заказа: {Fore.MAGENTA}{items_total}{Back.WHITE}"
