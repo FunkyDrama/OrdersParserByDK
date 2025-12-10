@@ -50,8 +50,6 @@ class GSheetWriter:
                 worksheet = self.spreadsheet.worksheet("Colored")
                 print(
                     Fore.GREEN
-                    + f"---Размер заказа: {smaller_size}---\n"
-                    + f"---Расширение файла: {extension}---\n"
                     + f"---Распределяем по листу: {worksheet.title}---"
                     + Back.WHITE
                 )
@@ -66,8 +64,6 @@ class GSheetWriter:
                     worksheet = self.spreadsheet.worksheet("22 roll")
                     print(
                         Fore.GREEN
-                        + f"---Размер заказа: {smaller_size}---\n"
-                        + f"---Расширение файла: {extension}---\n"
                         + f"---Распределяем по листу: {worksheet.title}---"
                         + Back.WHITE
                     )
@@ -81,8 +77,6 @@ class GSheetWriter:
                     worksheet = self.spreadsheet.worksheet("46 roll")
                     print(
                         Fore.GREEN
-                        + f"---Размер заказа: {smaller_size}---\n"
-                        + f"---Расширение файла: {extension}---\n"
                         + f"---Распределяем по листу: {worksheet.title}---"
                         + Back.WHITE
                     )
