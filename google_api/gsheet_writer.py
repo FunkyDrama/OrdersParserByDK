@@ -12,7 +12,24 @@ from config.settings import settings
 from google_api.gdrive_finder import resource_path
 
 WALLPAPER_PATTERN = re.compile(
-    r"(?i)(peel\s*[-\s]*n?\s*[-\s]*stick|non\s*[-\s]*woven(?:\s*fabric)?)"
+    r"""(?ix)
+    (
+        # Peel & Stick
+        pe[e]?l
+        \s*[-&]?\s*
+        (?:n|and)?
+        \s*[-&]?\s*
+        stick
+
+        |
+
+        # Non-Woven
+        non
+        \s*[-]?\s*
+        woven
+        (?:\s*fabric)?
+    )
+    """
 )
 
 

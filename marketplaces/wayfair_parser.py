@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup as Soup
 from colorama import Fore, Back
 
 from google_api.gdrive_finder import GoogleDriveFinder
+from google_api.gsheet_writer import WALLPAPER_PATTERN
 
 
 class WayfairParser:
@@ -409,6 +410,10 @@ class WayfairParser:
         try:
             customization_list = []
 
+            material = self.__get_material_from_sku()
+            if material:
+                customization_list.append(f"Material: {material}")
+
             if size:
                 size_customization = f"Size: {size}"
                 customization_list.append(size_customization)
@@ -452,17 +457,55 @@ class WayfairParser:
             print(Fore.RED + f"||| Ошибка: {e} |||" + Back.WHITE)
             return ""
 
+    def __get_material_from_sku(self) -> str | None:
+        if not self.sku:
+            return None
+
+        match = WALLPAPER_PATTERN.search(self.sku)
+        if not match:
+            return None
+
+        material = match.group(0).lower()
+
+        if "peel" in material:
+            return "Peel and Stick"
+        if "woven" in material:
+            return "Non-Woven"
+
+        return None
+
     def __get_color(self) -> str | None:
         """Извлечение цвета из part number"""
         try:
-            color_str = self.sku.replace(")", " ").replace("(", " ").split()
-            color_parts = color_str[2:]
-            if len(color_parts) > 1 and color_parts[1].istitle():
-                color = " ".join(color_parts[:2])
+            if not self.sku:
+                return None
+
+            sku = self.sku.lower()
+
+            size_match = re.search(r"\d+\s*x\s*\d+", sku)
+            if not size_match:
+                return None
+
+            after_size = sku[size_match.end() :].strip()
+
+            if not after_size:
+                return None
+
+            after_size = WALLPAPER_PATTERN.sub("", after_size).strip()
+
+            after_size = re.sub(r"[^a-z\s]", "", after_size).strip()
+
+            if not after_size:
+                return None
+
+            parts = after_size.split()
+
+            if len(parts) >= 2:
+                return f"{parts[0]} {parts[1]}".title()
             else:
-                color = color_parts[0]
-            return color.strip().title()
-        except (IndexError, AttributeError):
+                return parts[0].title()
+
+        except Exception:
             return None
 
     def __get_size(self) -> str | None:
