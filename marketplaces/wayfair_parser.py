@@ -149,7 +149,7 @@ class WayfairParser:
         """Извлечение адреса"""
         try:
             address_block = self.soup.find_all(
-                "div", attrs={"data-tag-default": "order-details_orderDetails_Text_46"}
+                "div", attrs={"data-tag-default": "order-details_orderDetails_Text_48"}
             )[0]
             if address_block:
                 address = "\n".join(address_block.stripped_strings)
