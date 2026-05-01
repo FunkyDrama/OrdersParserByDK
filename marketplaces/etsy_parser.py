@@ -343,7 +343,12 @@ class EtsyParser:
     def __get_address(self) -> str:
         """Извлечение адреса"""
         try:
-            address_div = self.soup.find(
+            destination_block = self.soup.find(
+                "div",
+                attrs={"data-testid": "destination"},
+                class_="panel mb-xs-0 mt-xs-2",
+            )
+            address_div = destination_block.find(
                 "div", class_="address break-word fs-mask"
             ).find("p")
             address_parts = {}
