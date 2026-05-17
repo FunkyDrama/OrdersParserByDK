@@ -116,6 +116,14 @@ class GSheetWriter:
     ) -> None:
         """Добавление данных в таблицу Google Sheets с закрашиванием ячеек, установкой стратегии обрезки текста и объединением ячеек"""
 
+        if not order_items:
+            print(
+                Fore.RED
+                + "||| Заказ не добавлен: парсер не нашел товары в HTML |||"
+                + Back.WHITE
+            )
+            return
+
         worksheet = self.__sort_by_sheets(extension, smaller_size, customization_info)
         headers = worksheet.row_values(1)  # Получаем заголовки первой строки
 

@@ -1,21 +1,3 @@
-# PyInstaller command to create a standalone executable for macOS/Linux:
-
-# pyinstaller --onefile --windowed \
-# --add-data="config/token.json:config" \
-# --add-data="config/.env:config" \
-# --add-data="google_api:google_api" \
-# --add-data="marketplaces:marketplaces" \
-# --icon=assets/icon.png \
-# --hidden-import="pydantic_settings" \
-# --hidden-import="pydantic" \
-# --name=OrdersParserByDK \
-# main.py
-
-# Alternative command for Windows:
-
-# pyinstaller --onefile --add-data "config/token.json;config" --add-data "config/.env;config" --add-data "google_api;google_api" --add-data "marketplaces;marketplaces" --icon=assets/icon.png --hidden-import "pydantic_settings" --hidden-import "pydantic" --name OrdersParserByDK main.py
-
-
 import os
 import sys
 from typing import LiteralString
@@ -157,7 +139,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # os.chdir(sys._MEIPASS)
     try:
         main()
     except (KeyboardInterrupt, SystemExit):

@@ -121,9 +121,7 @@ class EtsyParser:
             files = [{"link": "File Not Found", "name": "File Not Found"}]
 
         order_items = []
-        items = self.soup.find_all(
-            "tr", class_="col-group pl-xs-0 pt-xs-3 pr-xs-0 pb-xs-3 bb-xs-1"
-        )
+        items = self.soup.select("tr.col-group.pl-xs-0.pt-xs-3.pr-xs-0.pb-xs-3")
 
         file_index = 0
         for index, item in enumerate(items):
@@ -300,11 +298,18 @@ class EtsyParser:
     def __get_listing_title(item: Any) -> str:
         """Извлечение названия товара"""
         try:
-            listing_title = (
-                item.find("div", class_="flag-body prose").find(
+            listing_block = item.find("div", class_="flag-body prose")
+            if listing_block:
+                listing_title = listing_block.find(
                     "span", {"data-test-id": "unsanitize"}
+                ).text.strip()
+            else:
+                listing_link = item.find("a", href=re.compile(r"/transaction/"))
+                listing_title = (
+                    listing_link.get("title", "").strip()
+                    if listing_link
+                    else item.select_one("p.wt-text-title-small--tight").text.strip()
                 )
-            ).text.strip()
             print(
                 Fore.GREEN
                 + f"- Название товара: {Fore.MAGENTA}{listing_title}{Back.WHITE}"
@@ -391,11 +396,21 @@ class EtsyParser:
     def __get_customization(item: Any) -> LiteralString | None:
         """Извлечение и преобразование кастомизации из заказа"""
         try:
-            customization_block = item.find("div", class_="flag-body prose").find_all(
-                "li"
-            )
-            customization_items = " \n".join(
-                [li.get_text() for li in customization_block]
+            customization_container = item.find("div", class_="flag-body prose")
+            if customization_container:
+                customization_items = " \n".join(
+                    [li.get_text() for li in customization_container.find_all("li")]
+                )
+            else:
+                customization_items = "\n".join(
+                    [
+                        " ".join(li.get_text(" ", strip=True).split())
+                        for li in item.select("span.mb-xs-1 li")
+                    ]
+                )
+            customization_items = re.sub(r"\s+:", ":", customization_items)
+            customization_items = re.sub(
+                r"\bNon\s*-\s*Woven\b", "Non-Woven", customization_items, flags=re.I
             )
             print(
                 Fore.GREEN
@@ -410,9 +425,14 @@ class EtsyParser:
     def __get_size(item: Any) -> str:
         """Извлечение размера товара"""
         try:
-            size_text = (
-                item.find("div", class_="flag-body prose").find_all("li")[0].get_text()
-            )
+            customization_container = item.find("div", class_="flag-body prose")
+            if customization_container:
+                size_text = customization_container.find_all("li")[0].get_text()
+            else:
+                size_text = " ".join(
+                    li.get_text(" ", strip=True)
+                    for li in item.select("span.mb-xs-1 li")
+                )
 
             # Используем регулярное выражение для извлечения всех чисел (целых и дробных)
             size_pattern = re.findall(r"(\d+\.?\d*)", size_text)
@@ -442,9 +462,7 @@ class EtsyParser:
     def __get_quantity(item: Any) -> int | str:
         """Извлечение количества товара в заказе"""
         try:
-            quantity = item.find(
-                "td", class_="col-xs-2 pl-xs-0 text-center"
-            ).text.strip()
+            quantity = item.select_one("td.col-xs-2.pl-xs-0.text-center").text.strip()
             print(
                 Fore.GREEN
                 + f"- Количество: {Fore.MAGENTA}{quantity}{Back.WHITE}"
