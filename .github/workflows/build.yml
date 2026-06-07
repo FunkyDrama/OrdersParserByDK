@@ -1,0 +1,89 @@
+name: Build Desktop Apps
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create config files
+        shell: bash
+        run: |
+          echo '${{ secrets.GOOGLE_TOKEN_JSON }}' > config/token.json
+          echo '${{ secrets.ENV_FILE }}' > config/.env
+
+      - name: Build Windows app
+        run: >
+          pyinstaller --onefile
+          --add-data "config/token.json;config"
+          --add-data "config/.env;config"
+          --add-data "google_api;google_api"
+          --add-data "marketplaces;marketplaces"
+          --icon=assets/icon.png
+          --hidden-import="pydantic_settings"
+          --hidden-import="pydantic"
+          --name=OrdersParserByDK
+          main.py
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrdersParserByDK-windows
+          path: dist/OrdersParserByDK.exe
+          retention-days: 14
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create config files
+        run: |
+          echo '${{ secrets.GOOGLE_TOKEN_JSON }}' > config/token.json
+          echo '${{ secrets.ENV_FILE }}' > config/.env
+
+      - name: Build macOS app
+        run: >
+          pyinstaller --onefile --windowed
+          --add-data="config/token.json:config"
+          --add-data="config/.env:config"
+          --add-data="google_api:google_api"
+          --add-data="marketplaces:marketplaces"
+          --icon=assets/icon.png
+          --hidden-import="pydantic_settings"
+          --hidden-import="pydantic"
+          --name=OrdersParserByDK
+          main.py
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrdersParserByDK-macos
+          path: dist/OrdersParserByDK
+          retention-days: 14
