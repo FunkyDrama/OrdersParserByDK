@@ -486,7 +486,7 @@ class EtsyParser:
                         "div", class_="col-xs-3 text-right wt-pr-xs-0"
                     )
                     shipping_price = price_div.text.strip()
-                    shipping_price_value = float(shipping_price.strip("$"))
+                    shipping_price_value = self.__parse_money(shipping_price)
                     print(
                         Fore.GREEN
                         + f"- Установленная цена за доставку: {Fore.MAGENTA}{shipping_price_value}{Back.WHITE}"
@@ -509,14 +509,14 @@ class EtsyParser:
                 .find_next("div", class_="col-xs-3 text-right wt-pr-xs-0")
                 .text.strip()
             )
-            items_total = float(items_total.strip("$"))
+            items_total = self.__parse_money(items_total)
             print(
                 Fore.GREEN
                 + f"- Общая сумма за товары: {Fore.MAGENTA}{items_total}{Back.WHITE}"
                 + Back.WHITE
             )
             return items_total
-        except AttributeError:
+        except (AttributeError, ValueError):
             print(
                 Fore.RED + "||| Не смог получить общую сумму за товары |||" + Back.WHITE
             )
@@ -533,7 +533,7 @@ class EtsyParser:
             for value in shipping_values:
                 values = value.find_all("strong", class_="mr-xs-1")
                 for total in values:
-                    shipping_cost = float(total.text.strip("$"))
+                    shipping_cost = self.__parse_money(total.text)
                     total_shipping += shipping_cost
 
             print(
@@ -549,6 +549,14 @@ class EtsyParser:
                 + Back.WHITE
             )
             return "!ERROR!"
+
+    @staticmethod
+    def __parse_money(value: str) -> float:
+        """Преобразование строкового значения денег в числовой формат"""
+        cleaned = re.sub(r"[^\d.-]", "", value.replace(",", ""))
+        if not re.search(r"\d", cleaned):
+            return 0
+        return float(cleaned)
 
     def __get_postal_service(self) -> str | None | Any:
         """Извлечение названия почтовой службы"""
