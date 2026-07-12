@@ -25,7 +25,7 @@ jobs:
           uv sync
 
       - name: Run tests
-        run: python -m pytest tests -q
+        run: uv run pytest tests -q
 
   build-windows:
     runs-on: windows-latest
