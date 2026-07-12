@@ -7,8 +7,8 @@ on:
       - 'v*'
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  test:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -20,7 +20,30 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install uv
+          uv sync
+
+      - name: Run tests
+        run: python -m pytest tests -q
+
+  build-windows:
+    runs-on: windows-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync
 
       - name: Create config files
         shell: bash
@@ -35,6 +58,8 @@ jobs:
           --add-data "config/.env;config"
           --add-data "google_api;google_api"
           --add-data "marketplaces;marketplaces"
+          --add-data "core;core"
+          --add-data "ui;ui"
           --icon=assets/icon.png
           --hidden-import="pydantic_settings"
           --hidden-import="pydantic"
@@ -50,6 +75,7 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
+    needs: test
 
     steps:
       - name: Checkout
@@ -61,7 +87,9 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install uv
+          uv sync
 
       - name: Create config files
         run: |
@@ -70,20 +98,26 @@ jobs:
 
       - name: Build macOS app
         run: >
-          pyinstaller --onefile --windowed
+          pyinstaller --windowed
+          --name=OrdersParserByDK
+          --osx-bundle-identifier=dev.danielkravchenko.ordersparser
           --add-data="config/token.json:config"
           --add-data="config/.env:config"
           --add-data="google_api:google_api"
           --add-data="marketplaces:marketplaces"
+          --add-data="core:core"
+          --add-data="ui:ui"
           --icon=assets/icon.png
           --hidden-import="pydantic_settings"
           --hidden-import="pydantic"
-          --name=OrdersParserByDK
           main.py
+
+      - name: Zip .app (preserve symlinks and permissions)
+        run: ditto -c -k --keepParent "dist/OrdersParserByDK.app" "dist/OrdersParserByDK-macos.zip"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: OrdersParserByDK-macos
-          path: dist/OrdersParserByDK
+          path: dist/OrdersParserByDK-macos.zip
           retention-days: 14

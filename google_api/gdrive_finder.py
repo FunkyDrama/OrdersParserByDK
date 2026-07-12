@@ -1,64 +1,67 @@
+"""Searching and uploading files on Google Drive."""
+
 import os
 import sys
-from typing import LiteralString, Any
+import threading
+from typing import Any
 
-from colorama import Fore, Back
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-from config.settings import settings
-
-
-def resource_path(relative_path: LiteralString) -> LiteralString:
-    """Получает путь к файлу, который упакован в exe или находится в проекте."""
-    try:
-        # Если программа упакована в exe
-        base_path = sys._MEIPASS
-    except AttributeError:
-        # Если программа запускается как скрипт
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+from config.settings import get_settings
+from core.console import cprint
+from core.i18n import tr
+from core.constants import FILE_NOT_FOUND
+from core.paths import resource_path  # noqa: F401
+from google_api.auth import get_drive_service
 
 
 class GoogleDriveFinder:
-    """Класс для поиска файлов на Google Drive"""
+    """Finds files on Google Drive"""
 
     def __init__(self) -> None:
-        """Инициализация данных Google Drive"""
-        self.scopes = ["https://www.googleapis.com/auth/drive"]
-        self.creds = service_account.Credentials.from_service_account_file(
-            resource_path("config/token.json"), scopes=self.scopes
-        )
-        self.service = build("drive", "v3", credentials=self.creds)
+        """Initialization: a query cache shared between threads, guarded by a lock."""
+        self._search_cache: dict[str, list[dict[str, Any]] | None] = {}
+        self._cache_lock = threading.Lock()
 
-    def search_file_by_name(self, query: Any) -> list[dict[str, Any]] | None:
-        """Метод для поиска файла на диске. Принимает запрос поиска"""
+    @property
+    def service(self):
+        """The Drive service of the current thread (httplib2 is not thread-safe)."""
+        return get_drive_service()
+
+    def search_file_by_name(self, query: str) -> list[dict[str, Any]] | None:
+        """Searches for a file on the Drive. Takes the search query.
+
+        Calling again with the same query within one run returns the
+        cached result without touching the API.
+        """
+        with self._cache_lock:
+            if query in self._search_cache:
+                return self._search_cache[query]
+
         try:
             file_results = (
                 self.service.files()
                 .list(q=query, spaces="drive", fields="files(id, name, webViewLink)")
-                .execute()
+                .execute(num_retries=3)
             )
 
             files = file_results.get("files", [])
-            result = []
-            if files:
-                for file in files:
-                    file_id = file["id"]
-                    file_link = file["webViewLink"]
-                    filename = file["name"]
-                    res = {"id": file_id, "name": filename, "link": file_link}
-                    result.append(res)
-            return result if result else None
+            result = [
+                {"id": file["id"], "name": file["name"], "link": file["webViewLink"]}
+                for file in files
+            ]
+            found = result if result else None
+            with self._cache_lock:
+                self._search_cache[query] = found
+            return found
 
         except HttpError as error:
-            print(Fore.RED + f"!!!Произошла ошибка: {error}!!!" + Back.WHITE)
+            cprint(tr("!!!An error occurred: {error}!!!", error=error), "error")
             return None
 
     def upload_shipping_labels(self, order_id: str) -> Any | None | str:
-        """Метод для загрузки файлов шиплейблов и последующего их удаления"""
+        """Uploads shipping-label files and removes them locally afterwards"""
         if getattr(sys, "frozen", False):
             current_folder = os.path.dirname(sys.executable)
         else:
@@ -67,20 +70,14 @@ class GoogleDriveFinder:
         files_list = os.listdir(current_folder)
         shipping_label_name = f"{order_id}.pdf"
 
-        # Флаг для отслеживания найденного файла
-        file_found = False
-
-        # Ищем файл шиплейбла
         for label in files_list:
             if shipping_label_name == label.strip():
-                file_found = True
                 try:
-                    file_metadata = {"name": label}
-                    folder_id = settings.SHIPPING_LABEL_FOLDER
+                    file_metadata: dict[str, Any] = {"name": label}
+                    folder_id = get_settings().SHIPPING_LABEL_FOLDER
                     if folder_id:
                         file_metadata["parents"] = [folder_id]
 
-                    # Используем полный путь к файлу
                     file_path = os.path.join(current_folder, label)
                     media = MediaFileUpload(file_path, mimetype="application/pdf")
 
@@ -91,31 +88,28 @@ class GoogleDriveFinder:
                             media_body=media,
                             fields="id, webViewLink",
                         )
-                        .execute()
+                        .execute(num_retries=3)
                     )
 
-                    print(
-                        Fore.GREEN
-                        + f'- Шиплейбл загружен: {Fore.MAGENTA}{file["webViewLink"]}{Back.WHITE}'
-                        + Back.WHITE
+                    cprint(
+                        f"- {tr('Shipping label uploaded')}: {file['webViewLink']}",
+                        "success",
                     )
 
                     link = file.get("webViewLink")
                     if link:
                         del media
-                        # Используем полный путь при удалении
                         os.remove(file_path)
                     return link
 
                 except HttpError as error:
-                    print(Fore.RED + f"!!!Произошла ошибка: {error}!!!" + Back.WHITE)
+                    cprint(tr("!!!An error occurred: {error}!!!", error=error), "error")
                     return None
 
-        # Если файл не найден
-        if not file_found:
-            print(
-                Fore.RED
-                + "||| Проверьте наличие шиплейбла, скорее всего его нет в папке с программой |||"
-                + Back.WHITE
-            )
-            return "File Not Found"
+        cprint(
+            tr(
+                "||| Check that the shipping label exists, most likely it is not in the app folder |||"
+            ),
+            "error",
+        )
+        return FILE_NOT_FOUND

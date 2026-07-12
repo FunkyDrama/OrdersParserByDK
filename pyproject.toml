@@ -1,0 +1,97 @@
+[project]
+name = "orders-parser-by-dk"
+version = "7.2.3"
+description = "Parser for marketplace orders with Google Sheets export."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "altgraph==0.17.4",
+    "annotated-types==0.7.0",
+    "beautifulsoup4==4.12.3",
+    "cachetools==5.5.0",
+    "certifi==2024.8.30",
+    "charset-normalizer==3.4.0",
+    "click==8.1.8",
+    "colorama==0.4.6",
+    "google-api-core==2.21.0",
+    "google-api-python-client==2.149.0",
+    "google-auth==2.35.0",
+    "google-auth-httplib2==0.2.0",
+    "google-auth-oauthlib==1.2.1",
+    "googleapis-common-protos==1.65.0",
+    "gspread==6.1.4",
+    "gspread-formatting==1.2.1",
+    "httplib2==0.22.0",
+    "idna==3.10",
+    "lxml==5.3.0",
+    "macholib==1.16.3",
+    "mypy-extensions==1.1.0",
+    "oauthlib==3.2.2",
+    "packaging==24.1",
+    "pathspec==0.12.1",
+    "pillow==11.0.0",
+    "platformdirs==4.3.7",
+    "proto-plus==1.25.0",
+    "protobuf==5.28.3",
+    "pyasn1==0.6.1",
+    "pyasn1-modules==0.4.1",
+    "pydantic==2.9.2",
+    "pydantic-core==2.23.4",
+    "pydantic-settings==2.6.0",
+    "pyinstaller==6.11.0",
+    "pyinstaller-hooks-contrib==2024.9",
+    "pyparsing==3.2.0",
+    "pyside6==6.11.1",
+    "python-dotenv==1.0.1",
+    "requests==2.32.3",
+    "requests-oauthlib==2.0.0",
+    "rsa==4.9",
+    "setuptools==75.2.0",
+    "soupsieve==2.6",
+    "typing-extensions==4.12.2",
+    "uritemplate==4.1.1",
+    "urllib3==2.2.3",
+]
+
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pillow==11.0.0",
+    "pyinstaller==6.11.0",
+    "pytest==8.3.4",
+    "ruff>=0.15.21",
+    "types-colorama>=0.4.15.20260508",
+]
+
+[tool.black]
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = [
+    "bs4",
+    "bs4.*",
+    "colorama",
+    "colorama.*",
+    "googleapiclient",
+    "googleapiclient.*",
+    "gspread",
+    "gspread.*",
+    "gspread_formatting",
+    "gspread_formatting.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["google_api.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["ui.backend"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_errors = true

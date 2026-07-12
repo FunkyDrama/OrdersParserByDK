@@ -1,26 +1,28 @@
-from typing import Any
+"""Overstock order parser."""
+
 import datetime
 import re
-from colorama import Fore, Back
-
-from google_api.gdrive_finder import GoogleDriveFinder
-from bs4 import BeautifulSoup as Soup
+from typing import Any
 
 
-class OverstockParser:
-    def __init__(self, order: Any) -> None:
-        self.order = order
-        self.soup = Soup(order, "lxml")
-        self.finder = GoogleDriveFinder()
-        self.order_id = None
-        self.sku = None
+from core.console import cprint
+from core.i18n import tr
+from core.constants import ERROR_VALUE
+from marketplaces.base_parser import BaseParser, OrderItem
 
-    def parse_order(self):
+
+class OverstockParser(BaseParser):
+    """Parses data from an Overstock order"""
+
+    CHANNEL = "Overstock"
+
+    def parse_order(self) -> list[OrderItem]:
+        """Parses the order"""
         self.order_id = self.__get_order_id()
-        date = self.__get_parse_date(self)
+        date = self._today()
         store_title = self.__get_store_title()
         listing_links = self.__get_listing_links()
-        shipping_label_link = self.finder.upload_shipping_labels(self.order_id)
+        shipping_label_link = self._resolve_shipping_label_link()
         address = self.__get_address()
         items_total = self.__get_items_total()
         postal_service = self.__get_postal_service()
@@ -29,24 +31,15 @@ class OverstockParser:
         shipping_type = self.__get_shipping_type()
         ship_by_date = self.__ship_by_date()
 
-        files = self.__search_link_to_file()
-        if not files:
-            files = [{"link": "File Not Found", "name": "File Not Found"}]
-        if shipping_label_link == "File Not Found":
-            file_result = self.finder.search_file_by_name(
-                query=f"name contains '{self.order_id}' and name contains '.pdf'"
-            )
-            shipping_label_link = (
-                file_result[0]["link"] if file_result else "File Not Found"
-            )
+        files = self._files_or_placeholder(self._search_link_to_file())
 
-        order_items = []
+        order_items: list[OrderItem] = []
         items = self.soup.find("table", class_="table table-hover data-table").find_all(
             "td", id="lineProductCell"
         )
 
         file_index = 0
-        for item in items:
+        for index, item in enumerate(items):
             listing_title = self.__get_listing_title(item)
             self.sku = self.__get_sku(item)
             size = self.__get_size(item)
@@ -55,93 +48,62 @@ class OverstockParser:
             quantity = self.__get_quantity(item)
 
             listing_url = (
-                listing_links[items.index(item)]
-                if items.index(item) < len(listing_links)
-                else "File Not Found"
+                listing_links[index] if index < len(listing_links) else "File Not Found"
             )
+            file_link, file_index = self._allocate_file_link(files, file_index)
 
-            if (
-                file_index < len(files)
-                and files[file_index]["name"] != "File Not Found"
-            ):
-                file_link = files[file_index]["link"]
-                file_index += 1
-            else:
-                file_link = "File Not Found"
-
-            order_data = {
-                "Status": None,
-                "Additional Info": None,
-                "Date": date,
-                "Store": store_title,
-                "Channel": "Overstock",
-                "ASIN/SKU": self.sku,
-                "Listing Link": listing_url,
-                "Order ID": self.order_id,
-                "Title": listing_title,
-                "Address/Ship to": address,
-                "Quantity": quantity,
-                "Customization info": customization,
-                "File Link": file_link,
-                "Shipping label link": shipping_label_link,
-                "Track ID": tracking_number,
-                "Ship By": ship_by_date,
-                "Postal Service": postal_service,
-                "Shipping speed": shipping_type,
-                "Track package": tracking_link,
-                "Items total": items_total,
-                "Shipping total": 0,
-                "Shipping price": 0,
-                "Total": items_total,
-            }
-            order_items.append(order_data)
+            order_items.append(
+                self._make_row(
+                    date=date,
+                    store_title=store_title,
+                    sku=self.sku,
+                    listing_link=listing_url,
+                    listing_title=listing_title,
+                    address=address,
+                    quantity=quantity,
+                    customization=customization,
+                    file_link=file_link,
+                    shipping_label_link=shipping_label_link,
+                    tracking_number=tracking_number,
+                    ship_by_date=ship_by_date,
+                    postal_service=postal_service,
+                    shipping_type=shipping_type,
+                    tracking_link=tracking_link,
+                    items_total=items_total,
+                    shipping_total=0,
+                    shipping_price=0,
+                    total=items_total,
+                )
+            )
 
         return order_items
 
-    @staticmethod
-    def __get_parse_date(self) -> str:
-        """Метод получения сегодняшней даты"""
-        self.today = datetime.date.today().strftime("%d.%m.%Y")
-        print(
-            Fore.GREEN
-            + f"- Дата обработки заказа: {Fore.MAGENTA}{self.today}{Back.WHITE}"
-            + Back.WHITE
-        )
-        return self.today
-
     def __get_order_id(self) -> str | None | Any:
-        """Извлечение номера заказа"""
+        """Extracts the order ID"""
         try:
             order_id_div = self.soup.find_all("div", id="soId")
             for el in order_id_div:
                 if el.find("h6").text.strip() == "Retailer Order #":
                     order_id = el.find("p").text.strip()
-                    print(
-                        Fore.GREEN
-                        + f"- Номер заказа: {Fore.MAGENTA}{order_id}{Back.WHITE}"
-                        + Back.WHITE
-                    )
+                    cprint(f"- {tr('Order ID')}: {order_id}", "success")
                     return order_id
+            return None
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить номер заказа |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the order ID |||"), "error")
+            return ERROR_VALUE
 
-    def __get_store_title(self):
-        """Извлечение названия магазина"""
+    def __get_store_title(self) -> str:
+        """Extracts the shop name"""
         try:
             store_title = self.soup.find("div", id="soChannel").find("p").text.strip()
-            print(
-                Fore.GREEN
-                + f"- Название магазина: {Fore.MAGENTA}{store_title}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Shop name')}: {store_title}", "success")
             return store_title
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить название магазина |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the shop name |||"), "error")
+            return ERROR_VALUE
 
     def __get_address(self) -> str | None:
-        """Извлечение адреса"""
+        """Extracts the customer address"""
         try:
             address_block = self.soup.find("div", id="soShippingAddress").find("p")
             address_parts = [br.get_text(strip=True) for br in address_block]
@@ -150,47 +112,28 @@ class OverstockParser:
                 for address_parts in address_parts
                 if address_parts.strip()
             )
-            print(
-                Fore.GREEN
-                + f"- Адрес доставки:\n{Fore.MAGENTA}{address}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Shipping address')}:\n{address}", "success")
             return address
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить адрес доставки |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the shipping address |||"), "error")
+            return ERROR_VALUE
 
     def __get_items_total(self) -> float | str:
-        """Получение общей стоимости товара"""
+        """Extracts the items total"""
         try:
             items_rows = self.soup.find_all("td", id="lineFirstCostCell")
-            items_total = 0
+            items_total: float = 0
             for row in items_rows:
                 items_total += float(row.text.strip().replace("$", ""))
 
-            print(
-                Fore.GREEN
-                + f"- Сумма заказа: {Fore.MAGENTA}{items_total}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Order total')}: {items_total}", "success")
             return items_total
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить сумму заказа |||" + Back.WHITE)
-            return "!ERROR!"
-
-    def __search_link_to_file(self) -> list[dict[str, Any]] | None:
-        """Метод поиска ссылки на файл по номеру заказа или SKU"""
-        file_link = self.finder.search_file_by_name(
-            query=f"name contains '{self.order_id}' and not name contains '.pdf'"
-        )
-        if file_link is None:
-            file_link = self.finder.search_file_by_name(
-                query=f"name contains '{self.sku}' and not name contains '.pdf'"
-            )
-        return file_link
+            cprint(tr("||| Could not get the order total |||"), "error")
+            return ERROR_VALUE
 
     def __get_listing_links(self) -> list[str]:
-        """Извлечение и преобразование всех ссылок на листинги из заказа"""
+        """Extracts and normalizes all listing links from the order"""
         listing_urls = []
         try:
             listing_url_matches = re.finditer(
@@ -200,64 +143,47 @@ class OverstockParser:
             for match in listing_url_matches:
                 listing_url = match.group(1)
                 listing_urls.append(listing_url)
-                print(
-                    Fore.GREEN
-                    + f"- Ссылка на листинг: {Fore.MAGENTA}{listing_url}{Back.WHITE}"
-                    + Back.WHITE
-                )
+                cprint(f"- {tr('Listing link')}: {listing_url}", "success")
 
             if not listing_urls:
-                print(
-                    Fore.RED
-                    + "||| Не найдено ни одной ссылки на листинг |||"
-                    + Back.WHITE
-                )
-                return ["!ERROR!"]
+                cprint(tr("||| No listing links found |||"), "error")
+                return [ERROR_VALUE]
 
             return listing_urls
         except Exception as e:
-            print(
-                Fore.RED
-                + f"||| Ошибка при получении ссылок на листинги: {e} |||"
-                + Back.WHITE
+            cprint(
+                tr("||| Error while getting the listing links: {error} |||", error=e),
+                "error",
             )
-            return ["!ERROR!"]
+            return [ERROR_VALUE]
 
     @staticmethod
-    def __get_listing_title(item) -> str:
-        """Извлечение названия товара"""
+    def __get_listing_title(item: Any) -> str:
+        """Extracts the product title"""
         try:
             listing_title = item.find("p", class_="listing-title")
             if listing_title:
                 listing_title = listing_title.text.strip()
-            print(
-                Fore.GREEN
-                + f"- Название товара: {Fore.MAGENTA}{listing_title}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Product title')}: {listing_title}", "success")
             return listing_title
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить название листинга |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the listing title |||"), "error")
+            return ERROR_VALUE
 
     @staticmethod
-    def __get_sku(item) -> str:
-        """Извлечение SKU"""
+    def __get_sku(item: Any) -> str:
+        """Extracts the SKU"""
         try:
             sku = item.find("div").text.strip()
-            print(
-                Fore.GREEN
-                + f"- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Item SKU')}: {sku}", "success")
             return sku
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить SKU |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the SKU |||"), "error")
+            return ERROR_VALUE
 
     @staticmethod
-    def __get_size(item) -> str | None:
-        """Извлечение размера товара"""
+    def __get_size(item: Any) -> str | None:
+        """Extracts the product size"""
         patterns = [
             r"\b(\d+)\s*x\s*(\d+)\b",  # 35x52
             r"\((\d+)\s*x\s*(\d+)\)",  # (9x14)
@@ -271,8 +197,8 @@ class OverstockParser:
         return None
 
     @staticmethod
-    def __get_color(item) -> str | None:
-        """Извлечение цвета из part number"""
+    def __get_color(item: Any) -> str | None:
+        """Extracts the color from the part number"""
         try:
             main_text = item.find(text=True, recursive=False).strip()
 
@@ -286,8 +212,8 @@ class OverstockParser:
             return None
 
     @staticmethod
-    def __get_customization(size, color) -> str:
-        """Извлечение кастомизации из заказа"""
+    def __get_customization(size: str | None, color: str | None) -> str:
+        """Extracts the customization info from the order"""
         try:
             customization_list = []
 
@@ -300,143 +226,88 @@ class OverstockParser:
                 customization_list.append(color_customization)
 
             customization = "\n".join(customization_list)
-            print(
-                Fore.GREEN
-                + f"- Кастомизация:\n{Fore.MAGENTA}{customization}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Customization')}:\n{customization}", "success")
             return customization
 
         except AttributeError:
-            print(
-                Fore.YELLOW
-                + "||| Не смог получить кастомизацию, возможно, она не указана |||"
-                + Back.WHITE
+            cprint(
+                tr("||| Could not get the customization, it may not be specified |||"),
+                "warning",
             )
             return ""
         except ValueError as e:
-            print(Fore.RED + f"||| Ошибка: {e} |||" + Back.WHITE)
+            cprint(tr("||| Error: {error} |||", error=e), "error")
             return ""
 
     @staticmethod
-    def __get_quantity(item) -> int | str:
-        """Извлечение количества конкретного товара"""
+    def __get_quantity(item: Any) -> int | str:
+        """Extracts the quantity of a specific item"""
         try:
             quantity_cell = item.find_previous_sibling("td", id="lineQuantityCell")
             if quantity_cell:
                 quantity = quantity_cell.text.strip()
-                print(
-                    Fore.GREEN
-                    + f"- Количество: {Fore.MAGENTA}{quantity}{Back.WHITE}"
-                    + Back.WHITE
-                )
+                cprint(f"- {tr('Quantity')}: {quantity}", "success")
                 return int(quantity)
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить количество |||" + Back.WHITE)
-        return "!ERROR!"
+            cprint(tr("||| Could not get the quantity |||"), "error")
+        return ERROR_VALUE
 
     def __get_postal_service(self) -> str:
-        """Извлечение названия почтовой службы"""
+        """Extracts the carrier name"""
         try:
             postal_service = self.soup.find_all(
                 "span", class_="carrierCode existing_carrier"
             )[0].text.strip()
-            print(
-                Fore.GREEN
-                + f"- Служба доставки: {Fore.MAGENTA}{postal_service}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Carrier')}: {postal_service}", "success")
             return postal_service
         except (AttributeError, IndexError):
-            print(Fore.RED + "||| Не смог получить службу доставки |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the carrier |||"), "error")
+            return ERROR_VALUE
 
     def __get_tracking_number(self) -> str:
-        """Извлечение трек-номера"""
+        """Extracts the tracking number"""
         try:
             tracking_number = self.soup.find_all(
                 "span", class_="existing_tracking_number"
             )[0].text.strip()
-            print(
-                Fore.GREEN
-                + f"- Трек-номер: {Fore.MAGENTA}{tracking_number}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Tracking number')}: {tracking_number}", "success")
             return tracking_number
         except (AttributeError, IndexError):
-            print(Fore.RED + "||| Не смог получить трек-номер |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the tracking number |||"), "error")
+            return ERROR_VALUE
 
     def __get_tracking_link(
         self, postal_service: str, tracking_number: str
-    ) -> str | list[str] | None:
-        """Извлечение ссылки на отслеживание посылки"""
+    ) -> str | None:
+        """Extracts the tracking link"""
         try:
-            if postal_service == "USPS":
-                tracking_link = f"https://tools.usps.com/go/TrackConfirmAction_input?qtc_tLabels1={tracking_number}"
-                print(
-                    Fore.GREEN
-                    + f"- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}"
-                    + Back.WHITE
-                )
+            tracking_link = self._known_tracking_link(postal_service, tracking_number)
+            if tracking_link:
                 return tracking_link
-            elif postal_service == "UPS":
-                tracking_link = f"https://www.ups.com/track?TypeOfInquiryNumber=T&InquiryNumber1={tracking_number}&loc=en_US&requester=ST/trackdetails"
-                print(
-                    Fore.GREEN
-                    + f"- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}"
-                    + Back.WHITE
-                )
-                return tracking_link
-            elif postal_service == "FedEx":
-                tracking_link = f"https://www.fedex.com/apps/fedextrack/?tracknumbers={tracking_number}"
-                print(
-                    Fore.GREEN
-                    + f"- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}"
-                    + Back.WHITE
-                )
-                return tracking_link
-            elif postal_service == "DHL":
-                tracking_link = f"https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id={tracking_number}"
-                print(
-                    Fore.GREEN
-                    + f"- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}"
-                    + Back.WHITE
-                )
-                return tracking_link
-            else:
-                tracking_link = (
-                    self.soup.find_all("div", class_="existingShipments")[0]
-                    .find("a")
-                    .get("href")
-                )
-                return tracking_link
-        except AttributeError:
-            print(
-                Fore.RED
-                + "||| Не смог получить ссылку на отслеживание |||"
-                + Back.WHITE
+            tracking_link = (
+                self.soup.find_all("div", class_="existingShipments")[0]
+                .find("a")
+                .get("href")
             )
-            return "!ERROR!"
+            return tracking_link
+        except (AttributeError, IndexError):
+            cprint(tr("||| Could not get the tracking link |||"), "error")
+            return ERROR_VALUE
 
     def __get_shipping_type(self) -> str:
-        """Извлечение типа доставки"""
+        """Extracts the shipping method"""
         try:
             shipping_type = (
                 self.soup.find("div", id="soShipMethod").find("p").text.strip()
             )
-            print(
-                Fore.GREEN
-                + f"- Тип доставки: {Fore.MAGENTA}{shipping_type}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Shipping method')}: {shipping_type}", "success")
             return shipping_type
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить тип доставки |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the shipping method |||"), "error")
+            return ERROR_VALUE
 
     def __ship_by_date(self) -> str:
-        """Извлечение крайней даты отправки посылки"""
+        """Extracts the ship-by deadline date"""
         try:
             ship_by_date_div = self.soup.find_all("div", class_="existingShipments")[0]
             text = ship_by_date_div.get_text(" ", strip=True)
@@ -446,63 +317,10 @@ class OverstockParser:
                 formatted_date = datetime.datetime.strptime(
                     ship_by_date, "%m/%d/%Y"
                 ).strftime("%d.%m.%Y")
-                print(
-                    Fore.GREEN
-                    + f"- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}"
-                    + Back.WHITE
-                )
+                cprint(f"- {tr('Ship by')}: {formatted_date}", "success")
                 return formatted_date
-            return self.__get_parse_date(self)
+            return self._today()
         except (AttributeError, IndexError):
-            formatted_date = self.__get_parse_date(self)
-            print(
-                Fore.GREEN
-                + f"- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}"
-                + Back.WHITE
-            )
+            formatted_date = self._today()
+            cprint(f"- {tr('Ship by')}: {formatted_date}", "success")
             return formatted_date
-
-    def get_extension(self) -> str:
-        """Получение расширения файла для последующей сортировки по листам"""
-        files = self.__search_link_to_file()
-
-        # Проверка, что возвращен список файлов
-        if files and isinstance(files, list):
-            for file in files:
-                if file["name"] != "File Not Found":
-                    extension = file["name"].split(".")[
-                        -1
-                    ]  # Получаем расширение первого подходящего файла
-                    return extension
-            return "Unknown"  # Если файлы есть, но не нашли нужный файл
-        else:
-            return "Unknown"
-
-    def get_smaller_size(self) -> float | str:
-        """Получение меньшего значения в размере товара для сортировки"""
-        files = self.__search_link_to_file()
-        try:
-            if files and isinstance(files, list):
-                for file in files:
-                    if file["name"] != "File Not Found":
-                        size_from_name = file["name"].split(" ")[0]
-                        if "," in size_from_name:
-                            size_from_name = size_from_name.replace(",", ".")
-                        size = size_from_name.split("x")
-                        width = float(size[0].strip())
-                        height = float(size[1].strip())
-                        smaller_size = min(width, height)
-                        return float(smaller_size)
-            print(
-                Fore.RED
-                + "||| Не смог получить меньший размер для сортировки |||"
-                + Back.WHITE
-            )
-            return "!ERROR!"
-        except (ValueError, AttributeError):
-            print(
-                Fore.RED
-                + "||| Не смог получить меньший размер для сортировки |||"
-                + Back.WHITE
-            )
-            return "!ERROR!"

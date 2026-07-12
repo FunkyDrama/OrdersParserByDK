@@ -1,49 +1,211 @@
+"""Writing orders to Google Sheets."""
+
 import random
-from typing import List, Dict
-import re
-import gspread
-from colorama import Fore, Back
-from google.oauth2 import service_account
-from gspread import Worksheet
+from typing import Any
+
+from gspread import Spreadsheet, Worksheet
 from gspread.utils import ValueInputOption
-from gspread_formatting import Color
 
-from config.settings import settings
-from google_api.gdrive_finder import resource_path
-
-WALLPAPER_PATTERN = re.compile(
-    r"""(?ix)
-    (
-        # Peel & Stick
-        pe[e]?l
-        \s*[-&]?\s*
-        (?:n|and)?
-        \s*[-&]?\s*
-        stick
-
-        |
-
-        # Non-Woven
-        non
-        \s*[-]?\s*
-        woven
-        (?:\s*fabric)?
-    )
-    """
+from config.settings import get_settings
+from core.console import cprint
+from core.i18n import tr
+from core.constants import (
+    COL_STATUS,
+    COLORED_EXTENSIONS,
+    HIGHLIGHT_COLUMNS,
+    MERGE_COLUMNS,
+    MULTI_ITEM_PALETTE,
+    ROLL_SIZE_THRESHOLD,
+    SHEET_22_ROLL,
+    SHEET_46_ROLL,
+    SHEET_COLORED,
+    SHEET_ERROR,
+    SHEET_WALLPAPER,
+    STATUS_CELL_COLOR,
+    WALLPAPER_PATTERN,  # noqa: F401
 )
+from google_api.auth import get_gspread_client
+
+
+def select_sheet_name(
+    extension: str,
+    smaller_size: float | str,
+    customization_info: str | None = None,
+) -> str:
+    """Picks the sheet based on customization, file extension and the smaller side."""
+    if customization_info and WALLPAPER_PATTERN.search(customization_info):
+        return SHEET_WALLPAPER
+
+    if extension != "Unknown":
+        if extension in COLORED_EXTENSIONS:
+            return SHEET_COLORED
+        if isinstance(smaller_size, float):
+            if smaller_size <= ROLL_SIZE_THRESHOLD:
+                return SHEET_22_ROLL
+            return SHEET_46_ROLL
+
+    return SHEET_ERROR
+
+
+def build_rows(
+    order_items: list[dict[str, None | str | int]], headers: list[str]
+) -> list[list[Any]]:
+    """Lays out the order dicts across the sheet columns."""
+    header_index = {name: idx for idx, name in enumerate(headers)}
+    rows: list[list[Any]] = []
+    for order_item in order_items:
+        row_data: list[Any] = ["" for _ in range(len(headers))]
+        for column, value in order_item.items():
+            col_index = header_index.get(column)
+            if col_index is not None:
+                row_data[col_index] = value
+        rows.append(row_data)
+    return rows
+
+
+def build_insert_rows_request(
+    sheet_id: int, start_row_index: int, num_rows: int
+) -> dict[str, Any]:
+    """insertDimension: blank rows at the exact position."""
+    return {
+        "insertDimension": {
+            "range": {
+                "sheetId": sheet_id,
+                "dimension": "ROWS",
+                "startIndex": start_row_index,
+                "endIndex": start_row_index + num_rows,
+            },
+            "inheritFromBefore": False,
+        }
+    }
+
+
+def build_format_requests(
+    sheet_id: int,
+    start_row_index: int,
+    num_rows: int,
+    num_columns: int,
+    highlight_col_indices: list[int],
+    status_col_index: int,
+    rgb: dict[str, float],
+) -> list[dict[str, Any]]:
+    """Order formatting: 4 highlighted columns for multi-item orders,
+    CLIP across the whole row and a red Status — always.
+
+    Cell merges are collected separately (build_merge_requests) because
+    they run after the values are written.
+    """
+    end_row_index = start_row_index + num_rows
+    requests: list[dict[str, Any]] = []
+
+    if num_rows > 1:
+        for col in highlight_col_indices:
+            requests.append(
+                {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": start_row_index,
+                            "endRowIndex": end_row_index,
+                            "startColumnIndex": col,
+                            "endColumnIndex": col + 1,
+                        },
+                        "cell": {"userEnteredFormat": {"backgroundColor": rgb}},
+                        "fields": "userEnteredFormat.backgroundColor",
+                    }
+                }
+            )
+
+    requests.append(
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": start_row_index,
+                    "endRowIndex": end_row_index,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": num_columns,
+                },
+                "cell": {"userEnteredFormat": {"wrapStrategy": "CLIP"}},
+                "fields": "userEnteredFormat.wrapStrategy",
+            }
+        }
+    )
+
+    requests.append(
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": start_row_index,
+                    "endRowIndex": end_row_index,
+                    "startColumnIndex": status_col_index,
+                    "endColumnIndex": status_col_index + 1,
+                },
+                "cell": {"userEnteredFormat": {"backgroundColor": STATUS_CELL_COLOR}},
+                "fields": "userEnteredFormat.backgroundColor",
+            }
+        }
+    )
+
+    return requests
+
+
+def build_merge_requests(
+    sheet_id: int,
+    start_row_index: int,
+    num_rows: int,
+    merge_col_indices: list[int],
+) -> list[dict[str, Any]]:
+    """Cell merges happen only for multi-item orders (as before)."""
+    if num_rows <= 1:
+        return []
+
+    end_row_index = start_row_index + num_rows
+    return [
+        {
+            "mergeCells": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": start_row_index,
+                    "endRowIndex": end_row_index,
+                    "startColumnIndex": col,
+                    "endColumnIndex": col + 1,
+                },
+                "mergeType": "MERGE_ALL",
+            }
+        }
+        for col in merge_col_indices
+    ]
 
 
 class GSheetWriter:
-    """Класс для записи данных в Google Sheets"""
+    """Writes order data to Google Sheets"""
 
     def __init__(self) -> None:
-        """Инициализация данных Google Sheets и получение данных из заказа для последующей записи"""
-        self.gspread_scope = ["https://www.googleapis.com/auth/spreadsheets"]
-        self.gspread_creds = service_account.Credentials.from_service_account_file(
-            resource_path("config/token.json"), scopes=self.gspread_scope
-        )
-        self.client = gspread.service_account(resource_path("config/token.json"))
-        self.spreadsheet = self.client.open_by_key(settings.TABLE_ID)
+        """The client and the spreadsheet are opened once; worksheets, headers and
+        the first free row number are cached for the whole run."""
+        self.client = get_gspread_client()
+        self.spreadsheet: Spreadsheet = self.client.open_by_key(get_settings().TABLE_ID)
+        self._worksheets: dict[str, Worksheet] = {}
+        self._headers: dict[str, list[str]] = {}
+        self._next_rows: dict[str, int] = {}
+
+    def _get_worksheet(self, title: str) -> Worksheet:
+        if title not in self._worksheets:
+            self._worksheets[title] = self.spreadsheet.worksheet(title)
+        return self._worksheets[title]
+
+    def _get_headers(self, worksheet: Worksheet) -> list[str]:
+        if worksheet.title not in self._headers:
+            self._headers[worksheet.title] = worksheet.row_values(1)
+        return self._headers[worksheet.title]
+
+    def _get_next_row(self, worksheet: Worksheet) -> int:
+        """The first free row of the sheet (1-based)."""
+        if worksheet.title not in self._next_rows:
+            self._next_rows[worksheet.title] = len(worksheet.get_all_values()) + 1
+        return self._next_rows[worksheet.title]
 
     def __sort_by_sheets(
         self,
@@ -51,255 +213,87 @@ class GSheetWriter:
         smaller_size: float | str,
         customization_info: str | None = None,
     ) -> Worksheet:
-        """Сортировка по листам, используя размер и расширение файла"""
+        """Routes the order to a sheet using the size and the file extension"""
+        sheet_name = select_sheet_name(extension, smaller_size, customization_info)
 
-        if customization_info and WALLPAPER_PATTERN.search(customization_info):
-            worksheet = self.spreadsheet.worksheet("Wallpaper")
-            print(
-                Fore.GREEN
-                + f"---Распределяем по листу: {worksheet.title}---"
-                + Back.WHITE
+        if sheet_name == SHEET_ERROR:
+            cprint(
+                tr(
+                    "---Order file not found on the Drive, so the file extension could not be determined for sheet routing.\n"
+                    "The order was added to the ERROR sheet---"
+                ),
+                "warning",
             )
-            return worksheet
+            return self._get_worksheet(sheet_name)
 
-        if not extension == "Unknown":
-            if extension in {"png", "jpg", "jpeg", "eps"}:
-                worksheet = self.spreadsheet.worksheet("Colored")
-                print(
-                    Fore.GREEN
-                    + f"---Распределяем по листу: {worksheet.title}---"
-                    + Back.WHITE
-                )
-                return worksheet
-            elif isinstance(smaller_size, float):
-                if smaller_size <= 22 and not extension in {
-                    "png",
-                    "jpg",
-                    "eps",
-                    "jpeg",
-                }:
-                    worksheet = self.spreadsheet.worksheet("22 roll")
-                    print(
-                        Fore.GREEN
-                        + f"---Распределяем по листу: {worksheet.title}---"
-                        + Back.WHITE
-                    )
-                    return worksheet
-                elif smaller_size > 22 and not extension in {
-                    "png",
-                    "jpg",
-                    "eps",
-                    "jpeg",
-                }:
-                    worksheet = self.spreadsheet.worksheet("46 roll")
-                    print(
-                        Fore.GREEN
-                        + f"---Распределяем по листу: {worksheet.title}---"
-                        + Back.WHITE
-                    )
-                    return worksheet
-
-        print(
-            Fore.YELLOW
-            + "---Файл заказа не найден на диске, поэтому не смог определить расширение файла и отсортировать по листу.\n"
-            "Заказ был добавлен на лист ERROR---" + Back.WHITE
-        )
-        worksheet = self.spreadsheet.worksheet("ERROR")
+        worksheet = self._get_worksheet(sheet_name)
+        cprint(tr("---Routing to sheet: {sheet}---", sheet=worksheet.title), "success")
         return worksheet
 
     def append_order(
         self,
-        order_items: List[Dict[str, None | str | int]],
+        order_items: list[dict[str, None | str | int]],
         extension: str,
         smaller_size: float | str,
         customization_info: str | None = None,
-    ) -> None:
-        """Добавление данных в таблицу Google Sheets с закрашиванием ячеек, установкой стратегии обрезки текста и объединением ячеек"""
+    ) -> str | None:
+        """Appends the order to Google Sheets with cell highlighting, the text
+        clipping strategy and cell merges.
+
+        Returns the name of the sheet the order was written to (for the UI summary).
+        """
 
         if not order_items:
-            print(
-                Fore.RED
-                + "||| Заказ не добавлен: парсер не нашел товары в HTML |||"
-                + Back.WHITE
+            cprint(
+                tr("||| Order not added: the parser found no items in the HTML |||"),
+                "error",
             )
-            return
+            return None
 
         worksheet = self.__sort_by_sheets(extension, smaller_size, customization_info)
-        headers = worksheet.row_values(1)  # Получаем заголовки первой строки
+        headers = self._get_headers(worksheet)
 
-        # Получить количество строк с данными
-        num_rows = len(
-            worksheet.get_all_values()
-        )  # Получаем все строки, включая заголовки
-        next_available_row = num_rows + 1  # Первая доступная строка для вставки данных
+        highlight_cols = [headers.index(col) for col in HIGHLIGHT_COLUMNS]
+        status_col = headers.index(COL_STATUS)
+        merge_cols = [headers.index(col) for col in MERGE_COLUMNS]
 
-        # Найдем индексы нужных колонок
-        order_id_col = headers.index("Order ID") + 1
-        address_col = headers.index("Address/Ship to") + 1
-        shipping_label_col = headers.index("Shipping label link") + 1
-        track_id_col = headers.index("Track ID") + 1
-        status_col_index = headers.index("Status") + 1
+        rows = build_rows(order_items, headers)
+        start_row = self._get_next_row(worksheet)
+        start_row_index = start_row - 1
 
-        # Добавляем индексы столбцов для объединения
-        columns_to_merge = [
-            "Postal Service",
-            "Shipping speed",
-            "Track package",
-            "Items total",
-            "Shipping total",
-            "Shipping price",
-            "Total",
+        red, green, blue = random.choice(MULTI_ITEM_PALETTE)
+        rgb = {"red": red, "green": green, "blue": blue}
+
+        requests = [
+            build_insert_rows_request(worksheet.id, start_row_index, len(rows)),
+            *build_format_requests(
+                sheet_id=worksheet.id,
+                start_row_index=start_row_index,
+                num_rows=len(rows),
+                num_columns=len(headers),
+                highlight_col_indices=highlight_cols,
+                status_col_index=status_col,
+                rgb=rgb,
+            ),
         ]
-        merge_col_indices = [headers.index(col) + 1 for col in columns_to_merge]
+        worksheet.spreadsheet.batch_update({"requests": requests})
 
-        # Цвета для ячеек в случае нескольких товаров
-        multiple_order_cell_color = [
-            Color(0.55, 0.80, 1.00),
-            Color(0.55, 1.00, 0.55),
-            Color(1.00, 0.55, 0.55),
-            Color(0.70, 0.55, 1.00),
-            Color(1.00, 0.75, 0.40),
-            Color(0.45, 1.00, 0.80),
-            Color(1.00, 0.55, 0.85),
-            Color(0.55, 0.95, 1.00),
-            Color(0.60, 1.00, 0.40),
-            Color(1.00, 0.60, 0.40),
-        ]
+        worksheet.update(
+            rows,
+            f"A{start_row}",
+            value_input_option=ValueInputOption.user_entered,
+        )
 
-        random_color = random.choice(multiple_order_cell_color)
-        rgb = {
-            "red": random_color.red,
-            "green": random_color.green,
-            "blue": random_color.blue,
-        }
-
-        merge_requests = []
-
-        for idx, order_item in enumerate(order_items):
-            row_data = [
-                "" for _ in range(len(headers))
-            ]  # Инициализация пустой строки для каждого товара
-
-            # Заполнение данных в строку для каждого order_item
-            for column, value in order_item.items():
-                if column in headers:
-                    col_index = headers.index(column)  # Найти индекс колонки по имени
-                    row_data[col_index] = value  # Заполнить значение
-
-            # Добавить строку данных в таблицу в первую доступную строку
-            worksheet.insert_row(
-                row_data,
-                index=next_available_row,
-                value_input_option=ValueInputOption.user_entered,
-            )
-            new_row_index = next_available_row  # Текущая строка, куда добавлен товар
-            next_available_row += 1  # Обновляем номер строки после вставки
-
-            # Определяем цвет только если больше одного товара в заказе
-            if len(order_items) > 1:
-                # Закрашивание ячеек в нужных колонках
-                worksheet.spreadsheet.batch_update(
-                    {
-                        "requests": [
-                            {
-                                "repeatCell": {
-                                    "range": {
-                                        "sheetId": worksheet.id,
-                                        "startRowIndex": new_row_index - 1,
-                                        "endRowIndex": new_row_index,
-                                        "startColumnIndex": col - 1,
-                                        "endColumnIndex": col,
-                                    },
-                                    "cell": {
-                                        "userEnteredFormat": {"backgroundColor": rgb}
-                                    },
-                                    "fields": "userEnteredFormat.backgroundColor",
-                                }
-                            }
-                            for col in [
-                                order_id_col,
-                                address_col,
-                                shipping_label_col,
-                                track_id_col,
-                            ]
-                        ]
-                    }
-                )
-
-                # Добавляем запросы на объединение ячеек
-                for col_index in merge_col_indices:
-                    if idx == 0:  # Только для первого товара в заказе
-                        merge_requests.append(
-                            {
-                                "mergeCells": {
-                                    "range": {
-                                        "sheetId": worksheet.id,
-                                        "startRowIndex": new_row_index - 1,
-                                        "endRowIndex": new_row_index
-                                        - 1
-                                        + len(order_items),
-                                        "startColumnIndex": col_index - 1,
-                                        "endColumnIndex": col_index,
-                                    },
-                                    "mergeType": "MERGE_ALL",
-                                }
-                            }
-                        )
-
-            # Установка стратегии обрезки текста (CLIP) для всей строки
-            worksheet.spreadsheet.batch_update(
-                {
-                    "requests": [
-                        {
-                            "repeatCell": {
-                                "range": {
-                                    "sheetId": worksheet.id,
-                                    "startRowIndex": new_row_index - 1,
-                                    "endRowIndex": new_row_index,
-                                    "startColumnIndex": 0,  # Начало строки (первый столбец)
-                                    "endColumnIndex": len(
-                                        headers
-                                    ),  # Конец строки (все столбцы)
-                                },
-                                "cell": {"userEnteredFormat": {"wrapStrategy": "CLIP"}},
-                                "fields": "userEnteredFormat.wrapStrategy",
-                            }
-                        }
-                    ]
-                }
-            )
-
-            # Закрашивание колонки Status
-            worksheet.spreadsheet.batch_update(
-                {
-                    "requests": [
-                        {
-                            "repeatCell": {
-                                "range": {
-                                    "sheetId": worksheet.id,
-                                    "startRowIndex": new_row_index - 1,
-                                    "endRowIndex": new_row_index,
-                                    "startColumnIndex": status_col_index - 1,
-                                    "endColumnIndex": status_col_index,
-                                },
-                                "cell": {
-                                    "userEnteredFormat": {
-                                        "backgroundColor": {
-                                            "red": 1.0,
-                                            "green": 0.0,
-                                            "blue": 0.0,
-                                        }
-                                    }
-                                },
-                                "fields": "userEnteredFormat.backgroundColor",
-                            }
-                        }
-                    ]
-                }
-            )
-
-        # Применяем все запросы на объединение ячеек
+        merge_requests = build_merge_requests(
+            sheet_id=worksheet.id,
+            start_row_index=start_row_index,
+            num_rows=len(rows),
+            merge_col_indices=merge_cols,
+        )
         if merge_requests:
             worksheet.spreadsheet.batch_update({"requests": merge_requests})
 
-        print(Fore.GREEN + "\n<<<Заказ добавлен в таблицу>>>\n")
+        self._next_rows[worksheet.title] = start_row + len(rows)
+
+        cprint("\n" + tr("<<<Order added to the spreadsheet>>>") + "\n", "success")
+        return worksheet.title

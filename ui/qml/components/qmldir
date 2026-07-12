@@ -1,0 +1,16 @@
+module components
+singleton Theme 1.0 Theme.qml
+HeaderBar 1.0 HeaderBar.qml
+LaunchPanel 1.0 LaunchPanel.qml
+SummaryBar 1.0 SummaryBar.qml
+StatCard 1.0 StatCard.qml
+LogPanel 1.0 LogPanel.qml
+OrdersPanel 1.0 OrdersPanel.qml
+PastePanel 1.0 PastePanel.qml
+NotificationPopup 1.0 NotificationPopup.qml
+LogBannerDelegate 1.0 LogBannerDelegate.qml
+LogFieldDelegate 1.0 LogFieldDelegate.qml
+LogProblemDelegate 1.0 LogProblemDelegate.qml
+LogDoneDelegate 1.0 LogDoneDelegate.qml
+LogNoteDelegate 1.0 LogNoteDelegate.qml
+LogPlainDelegate 1.0 LogPlainDelegate.qml

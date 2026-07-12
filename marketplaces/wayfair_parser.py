@@ -1,28 +1,28 @@
+"""Wayfair order parser."""
+
 import datetime
 import re
 from typing import Any
-from bs4 import BeautifulSoup as Soup
-from colorama import Fore, Back
-
-from google_api.gdrive_finder import GoogleDriveFinder
-from google_api.gsheet_writer import WALLPAPER_PATTERN
 
 
-class WayfairParser:
-    def __init__(self, order: Any) -> None:
-        self.order = order
-        self.soup = Soup(order, "lxml")
-        self.finder = GoogleDriveFinder()
-        self.order_id = None
-        self.sku = None
+from core.console import cprint
+from core.i18n import tr
+from core.constants import ERROR_VALUE, WALLPAPER_PATTERN
+from marketplaces.base_parser import BaseParser, OrderItem
 
-    def parse_order(self) -> list[dict[str, None | str | int]]:
-        """Метод парсинга заказа"""
+
+class WayfairParser(BaseParser):
+    """Parses data from a Wayfair order"""
+
+    CHANNEL = "Wayfair"
+
+    def parse_order(self) -> list[OrderItem]:
+        """Parses the order"""
         self.order_id = self.__get_order_id()
-        date = self.__get_parse_date(self)
+        date = self._today()
         store_title = self.__get_store_title()
         listing_links = self.__get_listing_links()
-        shipping_label_link = self.finder.upload_shipping_labels(self.order_id)
+        shipping_label_link = self._resolve_shipping_label_link()
         address = self.__get_address()
         items_total = self.__get_items_total()
         postal_service = self.__get_postal_service()
@@ -31,24 +31,15 @@ class WayfairParser:
         shipping_type = self.__get_shipping_type()
         ship_by_date = self.__ship_by_date()
 
-        files = self.__search_link_to_file()
-        if not files:
-            files = [{"link": "File Not Found", "name": "File Not Found"}]
-        if shipping_label_link == "File Not Found":
-            file_result = self.finder.search_file_by_name(
-                query=f"name contains '{self.order_id}' and name contains '.pdf'"
-            )
-            shipping_label_link = (
-                file_result[0]["link"] if file_result else "File Not Found"
-            )
+        files = self._files_or_placeholder(self._search_link_to_file())
 
-        order_items = []
+        order_items: list[OrderItem] = []
         items = self.soup.find("tbody", attrs={"data-hb-id": "TableBody"}).find_all(
             "tr", attrs={"data-hb-id": "TableRow"}
         )
 
         file_index = 0
-        for item in items:
+        for index, item in enumerate(items):
             listing_title = self.__get_listing_title(item)
             self.sku = self.__get_sku(item)
             size = self.__get_size()
@@ -57,131 +48,92 @@ class WayfairParser:
             quantity = self.__get_quantity(item)
 
             listing_url = (
-                listing_links[items.index(item)]
-                if items.index(item) < len(listing_links)
-                else "File Not Found"
+                listing_links[index] if index < len(listing_links) else "File Not Found"
             )
+            file_link, file_index = self._allocate_file_link(files, file_index)
 
-            if (
-                file_index < len(files)
-                and files[file_index]["name"] != "File Not Found"
-            ):
-                file_link = files[file_index]["link"]
-                file_index += 1
-            else:
-                file_link = "File Not Found"
-
-            order_data = {
-                "Status": None,
-                "Additional Info": None,
-                "Date": date,
-                "Store": store_title,
-                "Channel": "Wayfair",
-                "ASIN/SKU": self.sku,
-                "Listing Link": listing_url,
-                "Order ID": self.order_id,
-                "Title": listing_title,
-                "Address/Ship to": address,
-                "Quantity": quantity,
-                "Customization info": customization,
-                "File Link": file_link,
-                "Shipping label link": shipping_label_link,
-                "Track ID": tracking_number,
-                "Ship By": ship_by_date,
-                "Postal Service": postal_service,
-                "Shipping speed": shipping_type,
-                "Track package": tracking_link,
-                "Items total": items_total,
-                "Shipping total": 0,
-                "Shipping price": 0,
-                "Total": items_total,
-            }
-            order_items.append(order_data)
+            order_items.append(
+                self._make_row(
+                    date=date,
+                    store_title=store_title,
+                    sku=self.sku,
+                    listing_link=listing_url,
+                    listing_title=listing_title,
+                    address=address,
+                    quantity=quantity,
+                    customization=customization,
+                    file_link=file_link,
+                    shipping_label_link=shipping_label_link,
+                    tracking_number=tracking_number,
+                    ship_by_date=ship_by_date,
+                    postal_service=postal_service,
+                    shipping_type=shipping_type,
+                    tracking_link=tracking_link,
+                    items_total=items_total,
+                    shipping_total=0,
+                    shipping_price=0,
+                    total=items_total,
+                )
+            )
 
         return order_items
 
-    @staticmethod
-    def __get_parse_date(self) -> str:
-        """Метод получения сегодняшней даты"""
-        self.today = datetime.date.today().strftime("%d.%m.%Y")
-        print(
-            Fore.GREEN
-            + f"- Дата обработки заказа: {Fore.MAGENTA}{self.today}{Back.WHITE}"
-            + Back.WHITE
-        )
-        return self.today
-
     def __get_order_id(self) -> str:
-        """Извлечение номера заказа"""
+        """Extracts the order ID"""
         try:
             order_id = self.soup.find(
                 "h1",
                 class_="b62nt518y mb5j687 mb5j68d mb5j68v",
                 attrs={"data-hb-id": "Heading"},
             ).text.strip()
-            print(
-                Fore.GREEN
-                + f"- Номер заказа: {Fore.MAGENTA}{order_id}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Order ID')}: {order_id}", "success")
             return order_id
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить номер заказа |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the order ID |||"), "error")
+            return ERROR_VALUE
 
-    def __get_store_title(self):
-        """Извлечение названия магазина"""
+    def __get_store_title(self) -> str:
+        """Extracts the shop name"""
         try:
             store_title = self.soup.find_all(
                 "strong", {"data-tag-default": "order-details_orderDetails_strong"}
             )[-1].text.strip()
-            print(
-                Fore.GREEN
-                + f"- Название магазина: {Fore.MAGENTA}{store_title}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Shop name')}: {store_title}", "success")
             return store_title
         except (AttributeError, IndexError):
-            print(Fore.RED + "||| Не смог получить название магазина |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the shop name |||"), "error")
+            return ERROR_VALUE
 
     def __get_address(self) -> str | None:
-        """Извлечение адреса"""
+        """Extracts the customer address"""
         try:
             address_block = self.soup.find_all(
                 "div", attrs={"data-tag-default": "order-details_orderDetails_Text_48"}
             )[0]
             if address_block:
                 address = "\n".join(address_block.stripped_strings)
-                print(
-                    Fore.GREEN
-                    + f"- Адрес доставки:\n{Fore.MAGENTA}{address}{Back.WHITE}"
-                    + Back.WHITE
-                )
+                cprint(f"- {tr('Shipping address')}:\n{address}", "success")
                 return address
+            return None
         except (AttributeError, IndexError):
-            print(Fore.RED + "||| Не смог получить адрес доставки |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the shipping address |||"), "error")
+            return ERROR_VALUE
 
     def __get_items_total(self) -> float | str:
-        """Получение общей стоимости товара"""
+        """Extracts the items total"""
         try:
             items_total = self.soup.find_all(
                 "strong", attrs={"data-tag-default": "order-details_orderDetails_Text"}
             )[4].text.strip()
             items_total = float(items_total.strip("$").replace(",", ""))
-            print(
-                Fore.GREEN
-                + f"- Сумма заказа: {Fore.MAGENTA}{items_total}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Order total')}: {items_total}", "success")
             return items_total
         except (AttributeError, IndexError):
-            print(Fore.RED + "||| Не смог получить сумму заказа |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the order total |||"), "error")
+            return ERROR_VALUE
 
     def __get_postal_service(self) -> str:
-        """Извлечение названия почтовой службы"""
+        """Extracts the carrier name"""
         try:
             postal_service = self.soup.find_all(
                 "strong", attrs={"data-tag-default": "order-details_orderDetails_Text"}
@@ -195,100 +147,95 @@ class WayfairParser:
                 postal_service = "USPS"
             if postal_service == "United Parcel Service":
                 postal_service = "UPS"
-            print(
-                Fore.GREEN
-                + f"- Служба доставки: {Fore.MAGENTA}{postal_service}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Carrier')}: {postal_service}", "success")
             return postal_service
         except (AttributeError, IndexError):
-            print(Fore.RED + "||| Не смог получить службу доставки |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the carrier |||"), "error")
+            return ERROR_VALUE
 
     def __get_tracking_number(self) -> str:
-        """Извлечение трек-номера"""
+        """Extracts the tracking number"""
         try:
-            tracking_number = self.soup.find_all(
+            fields = self.soup.find_all(
                 "p", attrs={"data-tag-default": "order-details_orderDetails_Text"}
-            )[-1].text.strip()
-            if tracking_number == "Tracking Number(s)":
-                raise AttributeError(
-                    Fore.RED + "||| Не смог получить трек-номер |||" + Back.WHITE
-                )
+            )
+            tracking_number = None
+            for index, field in enumerate(fields):
+                if field.text.strip() != "Tracking Number(s)":
+                    continue
+                if index + 1 < len(fields):
+                    candidate = fields[index + 1].text.strip()
+                    if self.__is_tracking_number(candidate):
+                        tracking_number = candidate
+                break
+
+            if not tracking_number:
+                raise AttributeError
+
             if ", " in tracking_number:
                 tracking_number = tracking_number.split(", ")
                 tracking_number = "\n".join(tracking_number)
-            print(
-                Fore.GREEN
-                + f"- Трек-номер: {Fore.MAGENTA}{tracking_number}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Tracking number')}: {tracking_number}", "success")
             return tracking_number
         except (AttributeError, IndexError):
-            print(Fore.RED + "||| Не смог получить трек-номер |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the tracking number |||"), "error")
+            return ERROR_VALUE
 
     @staticmethod
-    def __get_tracking_link(postal_service, tracking_number) -> str:
-        """Извлечение ссылки на отслеживание посылки"""
+    def __is_tracking_number(value: str) -> bool:
+        """Tells a real tracking number apart from neighboring labels such as Delivery Date."""
+        if not value:
+            return False
+        if value in {"Tracking Number(s)", "Delivery Date"}:
+            return False
+        if re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", value):
+            return False
+        return bool(re.search(r"\d", value)) and bool(
+            re.search(r"[A-Za-z0-9]{6,}", value)
+        )
+
+    def __get_tracking_link(self, postal_service: str, tracking_number: str) -> str:
+        """Extracts tracking links (there may be several tracking numbers)"""
         try:
+            if tracking_number == ERROR_VALUE:
+                raise AttributeError
+
             tracking_numbers = (
                 tracking_number.split("\n")
                 if "\n" in tracking_number
                 else [tracking_number]
             )
-            tracking_links = set()
+            tracking_links: dict[str, None] = {}
             for number in tracking_numbers:
-                tracking_link = None
-                if postal_service == "USPS":
-                    tracking_link = f"https://tools.usps.com/go/TrackConfirmAction_input?qtc_tLabels1={number}"
-                    tracking_links.add(tracking_link)
-                elif postal_service == "UPS" or postal_service == "UPS®":
-                    tracking_link = f"https://www.ups.com/track?TypeOfInquiryNumber=T&InquiryNumber1={number}&loc=en_US&requester=ST/trackdetails"
-                    tracking_links.add(tracking_link)
-                elif postal_service == "FedEx":
-                    tracking_link = (
-                        f"https://www.fedex.com/apps/fedextrack/?tracknumbers={number}"
-                    )
-                    tracking_links.add(tracking_link)
-                elif postal_service == "DHL":
-                    tracking_link = f"https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id={number}"
-                print(
-                    Fore.GREEN
-                    + f"- Ссылка на отслеживание: {Fore.MAGENTA}{tracking_link}{Back.WHITE}"
-                    + Back.WHITE
-                )
-                tracking_links.add(tracking_link)
-            links = "\n\n".join(tracking_links)
-            return links
+                tracking_link = self._known_tracking_link(postal_service, number)
+                if tracking_link:
+                    tracking_links[tracking_link] = None
+
+            if not tracking_links:
+                cprint(tr("||| Could not get the tracking link |||"), "error")
+                return ERROR_VALUE
+
+            return "\n\n".join(tracking_links)
         except AttributeError:
-            print(
-                Fore.RED
-                + "||| Не смог получить ссылку на отслеживание |||"
-                + Back.WHITE
-            )
-            return "!ERROR!"
+            cprint(tr("||| Could not get the tracking link |||"), "error")
+            return ERROR_VALUE
 
     def __get_shipping_type(self) -> str:
-        """Извлечение типа доставки"""
+        """Extracts the shipping method"""
         try:
             shipping_type = self.soup.find_all(
                 "strong", attrs={"data-tag-default": "order-details_orderDetails_Text"}
             )[8].text.strip()
             if shipping_type.startswith("FedEx"):
                 shipping_type = shipping_type.replace("FedEx", "").strip()
-            print(
-                Fore.GREEN
-                + f"- Тип доставки: {Fore.MAGENTA}{shipping_type}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Shipping method')}: {shipping_type}", "success")
             return shipping_type
         except (AttributeError, IndexError):
-            print(Fore.RED + "||| Не смог получить тип доставки |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the shipping method |||"), "error")
+            return ERROR_VALUE
 
     def __ship_by_date(self) -> str:
-        """Извлечение крайней даты отправки посылки"""
+        """Extracts the ship-by deadline date"""
         try:
             ship_by_date = self.soup.find_all(
                 "strong", attrs={"data-tag-default": "order-details_orderDetails_Text"}
@@ -296,23 +243,15 @@ class WayfairParser:
             formatted_date = datetime.datetime.strptime(
                 ship_by_date, "%m/%d/%Y"
             ).strftime("%d.%m.%Y")
-            print(
-                Fore.GREEN
-                + f"- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Ship by')}: {formatted_date}", "success")
             return formatted_date
         except (AttributeError, IndexError):
-            formatted_date = self.__get_parse_date(self)
-            print(
-                Fore.GREEN
-                + f"- Заказ отправить до: {Fore.MAGENTA}{formatted_date}{Back.WHITE}"
-                + Back.WHITE
-            )
+            formatted_date = self._today()
+            cprint(f"- {tr('Ship by')}: {formatted_date}", "success")
             return formatted_date
 
     def __get_listing_links(self) -> list[str]:
-        """Извлечение и преобразование всех ссылок на листинги из заказа"""
+        """Extracts and normalizes all listing links from the order"""
         listing_urls = []
         try:
             listing_url_matches = re.finditer(
@@ -321,43 +260,23 @@ class WayfairParser:
             for match in listing_url_matches:
                 listing_url = match.group(1)
                 listing_urls.append(listing_url)
-                print(
-                    Fore.GREEN
-                    + f"- Ссылка на листинг: {Fore.MAGENTA}{listing_url}{Back.WHITE}"
-                    + Back.WHITE
-                )
+                cprint(f"- {tr('Listing link')}: {listing_url}", "success")
 
             if not listing_urls:
-                print(
-                    Fore.RED
-                    + "||| Не найдено ни одной ссылки на листинг |||"
-                    + Back.WHITE
-                )
-                return ["!ERROR!"]
+                cprint(tr("||| No listing links found |||"), "error")
+                return [ERROR_VALUE]
 
             return listing_urls
         except Exception as e:
-            print(
-                Fore.RED
-                + f"||| Ошибка при получении ссылок на листинги: {e} |||"
-                + Back.WHITE
+            cprint(
+                tr("||| Error while getting the listing links: {error} |||", error=e),
+                "error",
             )
-            return ["!ERROR!"]
-
-    def __search_link_to_file(self) -> list[dict[str, Any]] | None:
-        """Метод поиска ссылки на файл по номеру заказа или SKU"""
-        file_link = self.finder.search_file_by_name(
-            query=f"name contains '{self.order_id}' and not name contains '.pdf'"
-        )
-        if file_link is None:
-            file_link = self.finder.search_file_by_name(
-                query=f"name contains '{self.sku}' and not name contains '.pdf'"
-            )
-        return file_link
+            return [ERROR_VALUE]
 
     @staticmethod
-    def __get_listing_title(item) -> str:
-        """Извлечение названия товара"""
+    def __get_listing_title(item: Any) -> str:
+        """Extracts the product title"""
         try:
             titles = item.find_all(
                 "p",
@@ -371,20 +290,16 @@ class WayfairParser:
                 for title in titles
                 if title.find_parent("div", class_="b62nt5ct")
             ]
-            listing_titles = "".join(listing_titles)
-            print(
-                Fore.GREEN
-                + f"- Название товара: {Fore.MAGENTA}{listing_titles}{Back.WHITE}"
-                + Back.WHITE
-            )
-            return listing_titles
+            listing_title = "".join(listing_titles)
+            cprint(f"- {tr('Product title')}: {listing_title}", "success")
+            return listing_title
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить название листинга |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the listing title |||"), "error")
+            return ERROR_VALUE
 
     @staticmethod
-    def __get_sku(item) -> str:
-        """Извлечение SKU"""
+    def __get_sku(item: Any) -> str:
+        """Extracts the SKU"""
         try:
             sku_div = item.find_all("p", class_="b62nt5bl b62nt518y")
             skus = [
@@ -395,18 +310,16 @@ class WayfairParser:
                 )
             ]
             sku = "".join(skus)
-            print(
-                Fore.GREEN
-                + f"- SKU товара: {Fore.MAGENTA}{sku}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Item SKU')}: {sku}", "success")
             return sku
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить SKU |||" + Back.WHITE)
-            return "!ERROR!"
+            cprint(tr("||| Could not get the SKU |||"), "error")
+            return ERROR_VALUE
 
-    def __get_customization(self, item, size, color) -> str:
-        """Извлечение кастомизации из заказа"""
+    def __get_customization(
+        self, item: Any, size: str | None, color: str | None
+    ) -> str:
+        """Extracts the customization info from the order"""
         try:
             customization_list = []
 
@@ -439,25 +352,21 @@ class WayfairParser:
                     customization_list.append(f"Personalization: {customization_text}")
 
             customization = "\n".join(customization_list)
-            print(
-                Fore.GREEN
-                + f"- Кастомизация:\n{Fore.MAGENTA}{customization}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Customization')}:\n{customization}", "success")
             return customization
 
         except AttributeError:
-            print(
-                Fore.YELLOW
-                + "||| Не смог получить кастомизацию, возможно, она не указана |||"
-                + Back.WHITE
+            cprint(
+                tr("||| Could not get the customization, it may not be specified |||"),
+                "warning",
             )
             return ""
         except ValueError as e:
-            print(Fore.RED + f"||| Ошибка: {e} |||" + Back.WHITE)
+            cprint(tr("||| Error: {error} |||", error=e), "error")
             return ""
 
     def __get_material_from_sku(self) -> str | None:
+        """Wallpaper material (Peel and Stick / Non-Woven) from the SKU"""
         if not self.sku:
             return None
 
@@ -475,7 +384,7 @@ class WayfairParser:
         return None
 
     def __get_color(self) -> str | None:
-        """Извлечение цвета из part number"""
+        """Extracts the color from the part number"""
         try:
             if not self.sku:
                 return None
@@ -509,12 +418,14 @@ class WayfairParser:
             return None
 
     def __get_size(self) -> str | None:
-        """Извлечение размера товара"""
+        """Extracts the product size from the SKU"""
         patterns = [
             r"\b(\d+)\s*x\s*(\d+)\b",  # 35x52
             r"\((\d+)\s*x\s*(\d+)\)",  # (9x14)
             r'(\d+)"?\s*[HhWw]\s*X\s*(\d+)"?\s*[HhWw]',  # 17" H X 22" W
         ]
+        if self.sku is None:
+            return None
         for pattern in patterns:
             match = re.search(pattern, self.sku, re.IGNORECASE)
             if match:
@@ -522,8 +433,8 @@ class WayfairParser:
         return None
 
     @staticmethod
-    def __get_quantity(item) -> int | str:
-        """Извлечение количества конкретного товара"""
+    def __get_quantity(item: Any) -> int | str:
+        """Extracts the quantity of a specific item"""
         try:
             quantity_div = item.find_all(
                 "p",
@@ -541,57 +452,8 @@ class WayfairParser:
                 )
             ]
             quantity = "".join(quantities[2])
-            print(
-                Fore.GREEN
-                + f"- Количество: {Fore.MAGENTA}{quantity}{Back.WHITE}"
-                + Back.WHITE
-            )
+            cprint(f"- {tr('Quantity')}: {quantity}", "success")
             return int(quantity)
         except AttributeError:
-            print(Fore.RED + "||| Не смог получить количество |||" + Back.WHITE)
-            return "!ERROR!"
-
-    def get_extension(self) -> str:
-        """Получение расширения файла для последующей сортировки по листам"""
-        files = self.__search_link_to_file()
-
-        # Проверка, что возвращен список файлов
-        if files and isinstance(files, list):
-            for file in files:
-                if file["name"] != "File Not Found":
-                    extension = file["name"].split(".")[
-                        -1
-                    ]  # Получаем расширение первого подходящего файла
-                    return extension
-            return "Unknown"  # Если файлы есть, но не нашли нужный файл
-        else:
-            return "Unknown"
-
-    def get_smaller_size(self) -> float | str:
-        """Получение меньшего значения в размере товара для сортировки"""
-        files = self.__search_link_to_file()
-        try:
-            if files and isinstance(files, list):
-                for file in files:
-                    if file["name"] != "File Not Found":
-                        size_from_name = file["name"].split(" ")[0]
-                        if "," in size_from_name:
-                            size_from_name = size_from_name.replace(",", ".")
-                        size = size_from_name.split("x")
-                        width = float(size[0].strip())
-                        height = float(size[1].strip())
-                        smaller_size = min(width, height)
-                        return float(smaller_size)
-            print(
-                Fore.RED
-                + "||| Не смог получить меньший размер для сортировки |||"
-                + Back.WHITE
-            )
-            return "!ERROR!"
-        except (ValueError, AttributeError):
-            print(
-                Fore.RED
-                + "||| Не смог получить меньший размер для сортировки |||"
-                + Back.WHITE
-            )
-            return "!ERROR!"
+            cprint(tr("||| Could not get the quantity |||"), "error")
+            return ERROR_VALUE
