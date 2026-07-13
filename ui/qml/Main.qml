@@ -8,9 +8,11 @@ ApplicationWindow {
     id: window
 
     visible: true
-    visibility: Window.FullScreen
-    width: 800
-    height: 600
+    visibility: Qt.platform.os === "windows" ? Window.Maximized : Window.FullScreen
+    width: 1100
+    height: 760
+    minimumWidth: 800
+    minimumHeight: 600
     title: qsTr("Orders Parser v%1 by Daniel K").arg(App.appVersion)
 
     Material.theme: Material.Dark

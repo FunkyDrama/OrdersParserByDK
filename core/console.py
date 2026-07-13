@@ -13,7 +13,7 @@ from typing import Literal
 from colorama import Fore, Style
 from colorama import init as colorama_init
 
-from core.paths import get_executable_dir
+from core.paths import get_logs_dir
 
 colorama_init(autoreset=True)
 
@@ -66,7 +66,7 @@ def cleanup_old_logs(
     if max_age_days is None:
         max_age_days = LOG_RETENTION_DAYS
     if log_dir is None:
-        log_dir = os.path.join(get_executable_dir(), "logs")
+        log_dir = get_logs_dir()
     if not os.path.isdir(log_dir):
         return 0
 
@@ -104,7 +104,7 @@ def _get_logger() -> logging.Logger:
     logger.setLevel(logging.INFO)
     logger.propagate = False
     try:
-        log_dir = os.path.join(get_executable_dir(), "logs")
+        log_dir = get_logs_dir()
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, f"parser_{date.today():%Y-%m-%d}.log")
         handler = logging.FileHandler(log_path, encoding="utf-8")

@@ -23,7 +23,7 @@ from core import console
 from core import i18n as core_i18n
 from core.i18n import tr
 from core.constants import APP_VERSION
-from core.paths import get_executable_dir, get_orders_file_path
+from core.paths import get_logs_dir, get_orders_file_path
 from core.processor import OrderResult, process_order_list, split_orders
 from ui.log_format import parse_entry
 
@@ -423,7 +423,7 @@ class Backend(QObject):
 
     @Slot()
     def openLogsFolder(self) -> None:  # noqa: N802
-        logs_dir = os.path.join(get_executable_dir(), "logs")
+        logs_dir = get_logs_dir()
         os.makedirs(logs_dir, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(logs_dir))
 
