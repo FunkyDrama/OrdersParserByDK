@@ -14,6 +14,7 @@ build-macos:
 	--add-data="marketplaces:marketplaces" \
 	--add-data="core:core" \
 	--add-data="ui:ui" \
+	--add-data="assets:assets" \
 	--osx-bundle-identifier=dev.danielkravchenko.ordersparser \
 	--icon=assets/icon.png \
 	--hidden-import="pydantic_settings" \
@@ -22,7 +23,7 @@ build-macos:
 	main.py
 
 build-windows:
-	$(PYINSTALLER) --onefile --windowed --add-data "config/token.json;config" --add-data "config/.env;config" --add-data "google_api;google_api" --add-data "marketplaces;marketplaces" --add-data "core;core" --add-data "ui;ui" --icon=assets/icon.png --hidden-import "pydantic_settings" --hidden-import "pydantic" --name $(APP_NAME) main.py
+	$(PYINSTALLER) --onefile --windowed --add-data "config/token.json;config" --add-data "config/.env;config" --add-data "google_api;google_api" --add-data "marketplaces;marketplaces" --add-data "core;core" --add-data "ui;ui" --add-data "assets;assets" --icon=assets/icon.ico --hidden-import "pydantic_settings" --hidden-import "pydantic" --name $(APP_NAME) main.py
 
 check:
 	$(PYTHON) -m py_compile \

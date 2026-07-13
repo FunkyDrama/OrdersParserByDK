@@ -60,7 +60,8 @@ jobs:
           --add-data "marketplaces;marketplaces"
           --add-data "core;core"
           --add-data "ui;ui"
-          --icon=assets/icon.png
+          --add-data "assets;assets"
+          --icon=assets/icon.ico
           --hidden-import="pydantic_settings"
           --hidden-import="pydantic"
           --name=OrdersParserByDK
@@ -107,6 +108,7 @@ jobs:
           --add-data="marketplaces:marketplaces"
           --add-data="core:core"
           --add-data="ui:ui"
+          --add-data="assets:assets"
           --icon=assets/icon.png
           --hidden-import="pydantic_settings"
           --hidden-import="pydantic"
