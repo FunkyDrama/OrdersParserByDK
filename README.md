@@ -1,181 +1,217 @@
 # OrdersParserByDK
 
-A desktop tool that turns marketplace orders (**Etsy, Amazon, eBay,
-Wayfair, Overstock**) into rows of a Google Sheets production table, finds the
-matching design files on Google Drive and uploads shipping labels — so an
-operator processes a batch of orders in seconds instead of copy-pasting them
-by hand.
+Production-focused desktop automation for marketplace order operations.
 
-Built with **Python 3.12, PySide6 + QML (Material Dark), BeautifulSoup (lxml),
-gspread and the Google Drive API**. Ships as a single PyInstaller binary for
-macOS and Windows via GitHub Actions.
+OrdersParserByDK turns raw marketplace order HTML from Etsy, Amazon, eBay,
+Wayfair and Overstock into correctly routed Google Sheets rows, finds matching
+production files in Google Drive, uploads shipping labels, and leaves a
+structured processing journal for operators to review.
 
-## Features
+The project started as a large single-file internal script and was rebuilt into
+a tested desktop application with a reusable parsing pipeline, a PySide6/QML UI,
+parallel order processing, and release builds for macOS, Windows and Windows
+Server.
 
-- **Five marketplaces, one pipeline.** Each parser only extracts fields; the
-  shared `BaseParser` handles Drive lookups, shipping labels, tracking links
-  and row building. Marketplace detection is order-sensitive and preserved
-  1:1 from the battle-tested legacy version.
-- **Parallel parsing, sequential writing.** Orders are parsed by a 4-thread
-  pool (the work is mostly waiting on Google Drive), while spreadsheet writes
-  stay strictly sequential and in the original order. The journal never
-  interleaves: each order's output is buffered per thread and replayed in
-  order.
-- **Frugal with the Google API.** Writing an order costs 2–3 requests instead
-  of the legacy 5 + 5·N: one `batch_update` (row insertion at the exact
-  position + formatting), one `values_update`, and one merge request for
-  multi-item orders only. Drive search results are cached per query; the
-  first free row of every sheet is fetched once per run and tracked locally.
-- **Graceful degradation.** A field that fails to parse becomes `!ERROR!` in
-  its cell; a missing Drive file becomes `File Not Found` and routes the
-  order to the ERROR sheet; an uncomputable total becomes `!ERROR!` in the
-  Total cell — the order is still written. Only an unexpected exception skips
-  an order, and the UI offers a one-click retry for exactly those.
-- **Desktop UI (PySide6 + QML).** Dark Material theme, drag & drop of the
-  orders file, a structured journal (per-order banners, key/value rows,
-  error cards, clickable tracking/file links), an Orders tab with per-order
-  cards, a Paste-HTML tab to process orders without a file, live progress
-  and summary, and popups for important events (dismissed by a click
-  anywhere).
-- **Three languages end to end.** English (default), Russian and Ukrainian.
-  The UI uses Qt Linguist (`.ts`/`.qm`) with live switching; runtime log
-  messages follow the same language through a gettext-style catalog
-  (`core/i18n.py`) — only hardcoded texts are translated, data values
-  (SKUs, sheet names, addresses) pass through untouched. The choice is
-  persisted in `QSettings`; the CLI takes a `--lang ru|uk` flag.
-- **File logs with auto-cleanup.** Every message is mirrored to
-  `logs/parser_YYYY-MM-DD.log`; files older than `LOG_RETENTION_DAYS`
-  (7 by default) are removed at startup.
-- **Tested.** 61 unit tests cover marketplace detection, sheet routing,
-  positional insertion and batch formatting, the parallel pipeline's
-  ordering guarantees, log parsing and log cleanup — all without touching
-  the network.
+## What It Solves
+
+Marketplace order processing is repetitive, error-prone and full of small
+format differences:
+
+- each marketplace exposes order IDs, totals, shipping data and customizations
+  differently;
+- production routing depends on SKU, file type and product size;
+- Google Sheets writes must preserve exact row order and formatting;
+- Drive searches and label uploads need to be fast but rate-limit friendly;
+- operators need a clear journal when an order partially fails.
+
+This application automates that workflow end to end while keeping failures
+visible and recoverable.
+
+## Highlights
+
+- **Five marketplaces, one pipeline.** Marketplace-specific parsers extract raw
+  fields; shared infrastructure handles Drive lookup, sheet routing, shipping
+  labels, tracking links and row construction.
+- **Parallel parsing with ordered writes.** Orders are parsed in a worker pool,
+  while Google Sheets writes remain sequential and deterministic. The UI journal
+  never interleaves messages from different orders.
+- **Efficient Google API usage.** Each order is written with a small batch of
+  requests instead of repeated row-by-row calls. Drive searches are cached per
+  run.
+- **Graceful degradation.** Missing or malformed fields become explicit
+  `!ERROR!` values, missing Drive files route to the ERROR sheet, and only truly
+  unexpected exceptions skip an order.
+- **Operator-friendly desktop UI.** PySide6 + QML interface with drag and drop,
+  live progress, structured logs, retry for failed orders, order summaries,
+  paste-from-HTML mode and live language switching.
+- **Server-compatible build.** A separate Windows Server artifact runs the same
+  processing core without importing the Qt UI stack.
+- **Internationalization.** Runtime logs and QML UI support English, Russian and
+  Ukrainian.
+- **Tested without network access.** Unit tests cover parser behavior, routing,
+  sheet row construction, log parsing, i18n coverage and cleanup logic.
+
+## Tech Stack
+
+- Python 3.12
+- PySide6 + QML / Qt Quick Controls
+- BeautifulSoup + lxml
+- Google Sheets API, Google Drive API, gspread
+- Pydantic settings
+- PyInstaller release builds
+- pytest, ruff, mypy
 
 ## Architecture
 
+```text
+main.py                  GUI entry point; --cli keeps source CLI access
+main_cli.py              Windows Server entry point without UI imports
+core/
+  cli.py                 shared CLI runner
+  dispatcher.py          marketplace detection
+  processor.py           parallel parse -> ordered sequential write
+  console.py             console/file log bridge and UI subscribers
+  paths.py               source vs PyInstaller path handling
+  constants.py           columns, sheets, palette and tracking templates
+marketplaces/
+  base_parser.py         shared parser infrastructure
+  amazon_parser.py
+  ebay_parser.py
+  etsy_parser.py
+  overstock_parser.py
+  wayfair_parser.py
+google_api/
+  auth.py                service-account auth and per-thread Drive services
+  gdrive_finder.py       Drive lookup, upload and cache logic
+  gsheet_writer.py       exact-position row insertion and formatting
+ui/
+  app.py                 QGuiApplication and QML engine setup
+  backend.py             QObject bridge, models, worker thread
+  log_format.py          console text -> typed journal entries
+  qml/                   QML application and components
+tests/                   network-free unit tests
 ```
-main.py                  entry point: UI by default, --cli for console mode
-├── core/
-│   ├── dispatcher.py    marketplace detection (order-sensitive, 1:1 legacy)
-│   ├── processor.py     pipeline: parallel parse → ordered sequential write
-│   ├── console.py       cprint: console + file log + UI subscribers,
-│   │                    per-thread capture/replay, log auto-cleanup
-│   ├── constants.py     columns, sheets, palette, tracking templates
-│   └── paths.py         script vs PyInstaller-frozen path handling
-├── marketplaces/
-│   ├── base_parser.py   shared parser infrastructure (ABC)
-│   └── *_parser.py      Etsy / Amazon / eBay / Wayfair / Overstock
-├── google_api/
-│   ├── auth.py          one gspread client per app, one Drive service
-│   │                    per thread (httplib2 is not thread-safe)
-│   ├── gdrive_finder.py thread-safe file search with a shared query cache
-│   └── gsheet_writer.py 2–3 requests per order, exact-position insertion
-├── ui/
-│   ├── app.py           QGuiApplication, translators, engine lifecycle
-│   ├── backend.py       QObject bridge: Properties / Signals / Slots,
-│   │                    QAbstractListModel ×2, QSortFilterProxyModel,
-│   │                    QThread worker
-│   ├── log_format.py    console lines → typed journal entries (pure, tested)
-│   ├── i18n/            app_ru.ts / app_uk.ts sources + compiled .qm
-│   └── qml/
-│       ├── Main.qml     window, tabs, popup wiring
-│       └── components/  Theme singleton + 14 small components
-└── tests/               61 unit tests, network-free
-```
 
-Design decisions worth calling out:
+## Design Choices
 
-- **Python ↔ QML.** The backend is exposed as the `App` context property.
-  UI state is structured (`statusKind` + `statusArgs`, `notify(kind, args)`
-  signal) and all user-visible texts are composed in QML with `qsTr()` — so
-  every message follows the selected language, including live retranslation
-  via `QQmlEngine::retranslate()`.
-- **Why not `values.append`.** Sheets' append locates the "end of the table"
-  heuristically and misbehaves with frozen headers and grouped rows;
-  `insertDimension` inserts at the exact row, matching the legacy
-  `insert_row` semantics that operators rely on.
-- **Structured, stable log format.** Console messages use `|||…|||` /
-  `---…---` / `- Key: value` markers in every language, so the UI's
-  `log_format.py` parses them into typed journal entries (banners,
-  key/value rows, error cards) regardless of the selected language — the
-  banner pattern is built from the catalog itself.
+**Exact Google Sheets insertion.** The app does not use `values.append`, because
+append heuristics are unreliable with frozen headers and grouped rows. Instead,
+it inserts rows at the exact target position and applies formatting in a batch.
 
-## Running from source
+**Buffered per-order logs.** Each worker captures its own parser output and the
+processor replays logs in original order. Operators see a coherent journal even
+when parsing is parallel.
 
-Requires Python 3.12+.
+**Runtime marker format.** Parser logs use stable markers such as `|||...|||`,
+`---...---` and `- Key: value`. The QML journal parses those markers into
+banners, field rows, warnings and success messages in every supported language.
+
+**Server build without Qt.** Windows Server 2016 is unreliable with modern Qt.
+The server artifact uses `main_cli.py`, so PyInstaller does not need to import
+or bundle the desktop UI stack.
+
+## Running From Source
+
+Requires Python 3.12.
 
 ```bash
 git clone https://github.com/FunkyDrama/OrdersParserByDK.git
 cd OrdersParserByDK
-python -m venv .venv && source .venv/bin/activate   # .venv\Scripts\activate on Windows
-pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install uv
+uv sync --dev
 ```
 
-Configuration — `config/.env`:
+Create `config/.env`:
 
 ```ini
-TABLE_ID=<Google Sheets spreadsheet id>
-SHIPPING_LABEL_FOLDER=<Google Drive folder id for shipping labels>
+TABLE_ID=<google-sheets-spreadsheet-id>
+SHIPPING_LABEL_FOLDER=<google-drive-folder-id>
 ```
 
-plus a Google **service account** JSON at `config/credentials.json` with the
-Sheets and Drive scopes (share the spreadsheet and the folders with the
-service-account email).
+Add a Google service-account JSON at:
+
+```text
+config/token.json
+```
+
+The service account needs Sheets and Drive access, and the spreadsheet/folders
+must be shared with the service-account email.
+
+Run the app:
 
 ```bash
-python main.py          # desktop UI
-python main.py --cli    # legacy console mode
+uv run python main.py
 ```
 
-## Tests
+Run the source CLI:
 
 ```bash
-pip install pytest
-python -m pytest tests -q
+uv run python main.py --cli
+uv run python main.py --cli --lang ru
 ```
 
-## Building a binary
+Run the server entry point locally:
 
 ```bash
-make build        # PyInstaller one-file build for the current OS
+uv run python main_cli.py
 ```
 
-GitHub Actions builds macOS and Windows binaries on every tag; secrets
-provide `config/.env` and `credentials.json` at build time.
+## Builds
 
-## Updating translations
+GitHub Actions builds release artifacts on tag pushes and manual dispatch.
+
+| Artifact | Entry point | UI stack | Target |
+| --- | --- | --- | --- |
+| `OrdersParserByDK.exe` | `main.py` | PySide6/QML | Windows desktop |
+| `OrdersParserByDK.app` | `main.py` | PySide6/QML | macOS desktop |
+| `OrdersParserByDKServer.exe` | `main_cli.py` | none | Windows Server |
+
+Local build targets:
+
+```bash
+make build-macos
+make build-windows
+make build-windows-server
+```
+
+The Windows Server build intentionally uses `--windowed`, matching the legacy
+operator flow. It processes `orders.txt` next to the executable, keeps the
+process open until Enter is pressed, and writes file logs to the platform log
+directory.
+
+## Tests And Quality
+
+```bash
+uv run pytest tests -q
+uv run ruff check .
+uv run mypy --check-untyped-defs .
+```
+
+The test suite is network-free: Google API behavior is exercised through the
+row builders, routing logic and pure processing components rather than live
+services.
+
+## Internationalization
+
+QML strings are managed with Qt Linguist:
 
 ```bash
 pyside6-lupdate ui/qml/Main.qml ui/qml/components/*.qml \
-    -ts ui/i18n/app_ru.ts -ts ui/i18n/app_uk.ts   # extract qsTr() strings
-# edit the .ts files (Qt Linguist or any editor)
-pyside6-lrelease ui/i18n/app_ru.ts ui/i18n/app_uk.ts   # compile .qm
+    -ts ui/i18n/app_ru.ts -ts ui/i18n/app_uk.ts
+pyside6-lrelease ui/i18n/app_ru.ts ui/i18n/app_uk.ts
 ```
 
-The compiled `.qm` files are bundled into the binary together with the `ui/`
-directory.
+Runtime parser messages use `core/i18n.py`; tests verify that every literal
+`tr()` key used in source code has Russian and Ukrainian translations.
 
-## Version history
+## Release Notes
 
-- **7.2.3** — the language selector stays in sync when the language is
-  changed programmatically.
-- **7.2.2** — runtime log messages follow the application language
-  (EN/RU/UK) via a gettext-style catalog with an AST-based coverage test;
-  CLI gets a `--lang` flag.
-- **7.2.1** — all console/log messages translated to English; the
-  structural markers and the journal parser are unchanged.
-- **7.2.0** — UI internationalization (EN/RU/UK) with live switching; QML
-  decomposed into components with a `Theme` singleton; important events as
-  click-anywhere-to-dismiss popups; auto-switch to the Journal tab when
-  processing starts; all docstrings, comments and this README in English.
-- **7.1.2** — file logs with automatic cleanup (older than 7 days).
-- **7.1.1** — an uncomputable Total writes `!ERROR!` into the cell instead of
-  skipping the order.
-- **7.1.0** — parallel parsing (4 threads) with ordered writes and a
-  non-interleaving journal; the PySide6 + QML interface (structured journal,
-  Orders tab, Paste HTML, retry-failed).
-- **7.0.x** — the big refactor: `BaseParser` (−85% duplicated code),
-  dispatcher/processor split, 2–3 Sheets requests per order instead of
-  5 + 5·N, Drive query cache, unit-test suite; several legacy crashes fixed
-  (Wayfair unknown-carrier `TypeError`, silent `None` totals).
-- **6.x** — the legacy single-file version this project was refactored from.
+- **7.2.x** - UI language sync, runtime i18n, Windows icon/resource fixes and
+  Windows Server build support.
+- **7.1.x** - PySide6/QML desktop UI, parallel parsing, ordered writes,
+  structured journal and log cleanup.
+- **7.0.x** - major parser refactor: shared `BaseParser`, dispatcher/processor
+  split, fewer Google API calls, Drive query cache and network-free tests.
+- **6.x** - original single-file legacy script.

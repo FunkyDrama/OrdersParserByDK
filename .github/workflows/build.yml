@@ -74,6 +74,52 @@ jobs:
           path: dist/OrdersParserByDK.exe
           retention-days: 14
 
+  build-windows-server:
+    runs-on: windows-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync
+
+      - name: Create config files
+        shell: bash
+        run: |
+          echo '${{ secrets.GOOGLE_TOKEN_JSON }}' > config/token.json
+          echo '${{ secrets.ENV_FILE }}' > config/.env
+
+      - name: Build Windows Server app
+        run: >
+          uv run pyinstaller --windowed --onefile
+          --add-data "config/token.json;config"
+          --add-data "config/.env;config"
+          --add-data "google_api;google_api"
+          --add-data "marketplaces;marketplaces"
+          --add-data "core;core"
+          --add-data "assets;assets"
+          --icon=assets/icon.ico
+          --hidden-import="pydantic_settings"
+          --hidden-import="pydantic"
+          --name=OrdersParserByDKServer
+          main_cli.py
+
+      - name: Upload Windows Server artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrdersParserByDK-windows-server
+          path: dist/OrdersParserByDKServer.exe
+          retention-days: 14
+
   build-macos:
     runs-on: macos-latest
     needs: test

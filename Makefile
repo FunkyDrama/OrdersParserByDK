@@ -1,4 +1,4 @@
-.PHONY: build build-macos build-windows check test
+.PHONY: build build-macos build-windows build-windows-server check test
 
 APP_NAME := OrdersParserByDK
 PYTHON := uv run python
@@ -25,9 +25,14 @@ build-macos:
 build-windows:
 	$(PYINSTALLER) --onefile --windowed --add-data "config/token.json;config" --add-data "config/.env;config" --add-data "google_api;google_api" --add-data "marketplaces;marketplaces" --add-data "core;core" --add-data "ui;ui" --add-data "assets;assets" --icon=assets/icon.ico --hidden-import "pydantic_settings" --hidden-import "pydantic" --name $(APP_NAME) main.py
 
+build-windows-server:
+	$(PYINSTALLER) --onefile --windowed --add-data "config/token.json;config" --add-data "config/.env;config" --add-data "google_api;google_api" --add-data "marketplaces;marketplaces" --add-data "core;core" --add-data "assets;assets" --icon=assets/icon.ico --hidden-import "pydantic_settings" --hidden-import "pydantic" --name $(APP_NAME)Server main_cli.py
+
 check:
 	$(PYTHON) -m py_compile \
 		main.py \
+		main_cli.py \
+		core/cli.py \
 		config/settings.py \
 		core/console.py \
 		core/constants.py \
