@@ -100,7 +100,7 @@ jobs:
 
       - name: Build Windows Server app
         run: >
-          uv run pyinstaller --windowed --onefile
+          uv run pyinstaller --console --onefile
           --add-data "config/token.json;config"
           --add-data "config/.env;config"
           --add-data "google_api;google_api"
