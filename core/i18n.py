@@ -2,7 +2,7 @@
 
 LANGUAGES = ("en", "ru", "uk")
 
-_current_language = "en"
+_current_language = "ru"
 
 
 def set_language(code: str) -> None:
